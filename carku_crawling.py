@@ -196,7 +196,7 @@ def scrape_page(session, url, client):
                 )
                 indexed_count += 1
                 # 각 인덱싱 사이에 랜덤 지연 (2~5초)
-                time.sleep(random.uniform(0.2, 0.5))
+                time.sleep(random.uniform(0.5, 1.0))
             except Exception as e:
                 logging.error(f"Error indexing car: {str(e)}")
                 continue
@@ -244,7 +244,7 @@ def scrape_and_index_data(client):
             
             page += 1
             
-            delay = random.uniform(10, 30)
+            delay = random.uniform(60, 120)
             logging.info(f"Waiting {delay:.2f} seconds before next page...")
             time.sleep(delay)
     except KeyboardInterrupt:
