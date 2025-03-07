@@ -1,12 +1,10 @@
-import aiohttp
-import asyncio
+import requests
 from bs4 import BeautifulSoup
 import time
 from opensearchpy import OpenSearch
 from datetime import datetime
 import logging
 import sys
-from concurrent.futures import ThreadPoolExecutor
 
 # 로깅 설정
 logging.basicConfig(
@@ -108,40 +106,40 @@ def scrape_car_data_from_page(soup):
     
     return car_data
 
-async def scrape_page(session, url, headers, client, semaphore):
-    async with semaphore:
-        try:
-            async with session.get(url, headers=headers) as response:
-                html = await response.text()
-                soup = BeautifulSoup(html, 'html.parser')
-                
-                if "데이터가 없습니다" in soup.text or "존재하지 않는 페이지" in soup.text:
-                    return None, 0
-                
-                car_data = scrape_car_data_from_page(soup)
-                if not car_data:
-                    return None, 0
-                
-                # Index the data to OpenSearch
-                indexed_count = 0
-                for car in car_data:
-                    try:
-                        client.index(
-                            index='carku_goods',
-                            body=car,
-                            refresh=True
-                        )
-                        indexed_count += 1
-                    except Exception as e:
-                        logging.error(f"Error indexing car: {str(e)}")
-                        continue
-                
-                return car_data, indexed_count
-        except Exception as e:
-            logging.error(f"Error scraping page: {str(e)}")
+def scrape_page(url, headers, client):
+    try:
+        response = requests.get(url, headers=headers)
+        html = response.text
+        soup = BeautifulSoup(html, 'html.parser')
+        
+        if "데이터가 없습니다" in soup.text or "존재하지 않는 페이지" in soup.text:
             return None, 0
+        
+        car_data = scrape_car_data_from_page(soup)
+        if not car_data:
+            return None, 0
+        
+        # Index the data to OpenSearch
+        indexed_count = 0
+        for car in car_data:
+            try:
+                client.index(
+                    index='carku_goods',
+                    body=car,
+                    refresh=True
+                )
+                indexed_count += 1
+                time.sleep(2)  # 각 차량 데이터 인덱싱 사이에 2초 대기
+            except Exception as e:
+                logging.error(f"Error indexing car: {str(e)}")
+                continue
+        
+        return car_data, indexed_count
+    except Exception as e:
+        logging.error(f"Error scraping page: {str(e)}")
+        return None, 0
 
-async def scrape_and_index_data(client):
+def scrape_and_index_data(client):
     base_url = 'https://www.carku.kr/search/search.html'
     headers = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
@@ -150,37 +148,31 @@ async def scrape_and_index_data(client):
     total_indexed = 0
     page = 1
     
-    # 동시 연결 수 제한
-    semaphore = asyncio.Semaphore(5)  # 동시에 5개의 요청만 처리
-    
-    # TCP 연결 재사용을 위한 세션 생성
-    async with aiohttp.ClientSession() as session:
-        while True:
-            url = f"{base_url}?wCurPage={page}&wKmS=&wKmE=&wPageSize="
-            logging.info(f"Scraping page {page}: {url}")
+    while True:
+        url = f"{base_url}?wCurPage={page}&wKmS=&wKmE=&wPageSize="
+        logging.info(f"Scraping page {page}: {url}")
+        
+        car_data, indexed_count = scrape_page(url, headers, client)
+        
+        if car_data is None:
+            break
             
-            car_data, indexed_count = await scrape_page(session, url, headers, client, semaphore)
-            time.sleep(2)
-            
-            if car_data is None:
-                break
-                
-            total_indexed += indexed_count
-            logging.info(f"Indexed {indexed_count} cars from page {page}")
-            
-            page += 1
-            await asyncio.sleep(10)  # 1초 대기
+        total_indexed += indexed_count
+        logging.info(f"Indexed {indexed_count} cars from page {page}")
+        
+        page += 1
+        time.sleep(40)  # 페이지 간 대기 시간 30초
     
     return total_indexed
 
-async def main():
+def main():
     logging.info("Starting data collection and indexing to OpenSearch...")
     
     try:
         client = create_opensearch_client()
         create_carku_index(client)
         
-        total_indexed = await scrape_and_index_data(client)
+        total_indexed = scrape_and_index_data(client)
         
         logging.info(f"Total cars indexed: {total_indexed}")
         
@@ -191,4 +183,4 @@ async def main():
         logging.error(f"Error: {str(e)}")
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    main()
