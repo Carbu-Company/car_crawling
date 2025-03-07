@@ -196,7 +196,7 @@ def scrape_page(session, url, client):
                 )
                 indexed_count += 1
                 # 각 인덱싱 사이에 랜덤 지연 (2~5초)
-                time.sleep(random.uniform(2, 5))
+                time.sleep(random.uniform(0.2, 0.5))
             except Exception as e:
                 logging.error(f"Error indexing car: {str(e)}")
                 continue
@@ -225,16 +225,6 @@ def scrape_and_index_data(client):
     
     try:
         while True:
-            # 하루에 최대 100페이지만 크롤링
-            if page > 100:
-                logging.info("Reached daily limit of 100 pages. Stopping for today.")
-                break
-                
-            # 2시간 이상 크롤링했으면 중단
-            if time.time() - start_time > 7200:  # 7200초 = 2시간
-                logging.info("Reached time limit of 2 hours. Stopping for now.")
-                break
-                
             url = f"{base_url}?wCurPage={page}&wKmS=&wKmE=&wPageSize="
             logging.info(f"Scraping page {page}: {url}")
             
@@ -246,7 +236,7 @@ def scrape_and_index_data(client):
                     break
                 else:  # 첫 페이지에서 오류 발생 시 재시도
                     logging.warning("Error on first page. Retrying after 2 minutes...")
-                    time.sleep(120)
+                    time.sleep(20)
                     continue
             
             total_indexed += indexed_count
@@ -254,7 +244,6 @@ def scrape_and_index_data(client):
             
             page += 1
             
-            # 페이지 간 랜덤 지연 (30~60초)
             delay = random.uniform(10, 30)
             logging.info(f"Waiting {delay:.2f} seconds before next page...")
             time.sleep(delay)
