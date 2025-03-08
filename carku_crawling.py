@@ -32,7 +32,7 @@ def create_opensearch_client():
     return opensearch
 
 def create_carku_index(client):
-    index_name = 'carku_goods'
+    index_name = 'carku_goods_detail'
     
     try:
         if not client.indices.exists(index=index_name):
@@ -54,6 +54,7 @@ def create_carku_index(client):
     'mappings': {
         'properties': {
             'image_url': {'type': 'keyword'},
+            'detail_page': {'type': 'keyword'},
             'car_info': {
                 'type': 'text',
                 'norms': 'false',
@@ -65,6 +66,29 @@ def create_carku_index(client):
             'mileage': {'type': 'keyword'},
             'price': {'type': 'keyword'},
             'contact_info': {'type': 'keyword'},
+            # 상세 페이지에서 추출한 데이터 필드 추가
+            'all_images': {'type': 'keyword'},
+            'sale_price': {'type': 'keyword'},
+            'car_number': {'type': 'keyword'},
+            'year_model': {'type': 'keyword'},
+            'registration_date': {'type': 'keyword'},
+            'fuel_type': {'type': 'keyword'},
+            'transmission_type': {'type': 'keyword'},
+            'color': {'type': 'keyword'},
+            'detailed_mileage': {'type': 'keyword'},
+            'vin': {'type': 'keyword'},
+            'performance_number': {'type': 'keyword'},
+            'seizure_info': {'type': 'keyword'},
+            'accident_info': {'type': 'keyword'},
+            'tax_unpaid': {'type': 'keyword'},
+            'reference_number': {'type': 'keyword'},
+            'association_info': {'type': 'text'},
+            'seller_name': {'type': 'keyword'},
+            'seller_contact': {'type': 'keyword'},
+            'seller_company': {'type': 'keyword'},
+            'seller_license': {'type': 'keyword'},
+            'seller_address': {'type': 'keyword'},
+            'seller_img_url': {'type': 'keyword'},
             'timestamp': {'type': 'date'}
         }
     }
@@ -78,16 +102,25 @@ def create_carku_index(client):
 def scrape_car_data_from_page(soup):
     table = soup.find('table', class_='one_list')
     if not table:
+        logging.warning("테이블을 찾을 수 없습니다.")
         return []
         
     car_data = []
     rows = table.find_all('tr')[1:]
+    logging.info(f"총 {len(rows)}개의 차량 행을 찾았습니다.")
     
-    for row in rows:
+    for row_index, row in enumerate(rows):
         cells = row.find_all('td')
         if len(cells) >= 8:
+            # 이미지 및 상세 페이지 URL 추출
             img_tag = cells[0].find('img')
             img_url = img_tag['src'] if img_tag else ''
+            
+            # 상세 페이지 URL 추출
+            detail_link = cells[0].find('a')
+            detail_page = f"https://www.carku.kr{detail_link['href']}" if detail_link else ''
+            
+            # 나머지 데이터 추출
             car_info = cells[1].find('span').text.strip() if cells[1].find('span') else ''
             transmission = cells[2].text.strip()
             year = cells[3].text.strip()
@@ -96,8 +129,208 @@ def scrape_car_data_from_page(soup):
             price = cells[6].text.strip()
             contact_info = cells[7].get_text(separator=' ').strip()
             
+            # 상세 페이지 데이터 초기화
+            all_images = []
+            sale_price = ''
+            car_number = ''
+            year_model = ''
+            registration_date = ''
+            fuel_type = ''
+            transmission_type = ''
+            color = ''
+            detailed_mileage = ''
+            vin = ''
+            performance_number = ''
+            seizure_info = ''
+            accident_info = ''
+            tax_unpaid = ''
+            reference_number = ''
+            association_info = ''
+            seller_name = ''
+            seller_contact = ''
+            seller_company = ''
+            seller_license = ''
+            seller_address = ''
+            seller_img_url = ''
+            
+            # 상세 페이지에서 추가 정보 가져오기
+            if detail_page:
+                try:
+                    # 상세 페이지 접속 전 대기 시간 추가 (5-10초)
+                    wait_time = random.uniform(5, 10)
+                    time.sleep(wait_time)
+                    
+                    # 재시도 로직 추가
+                    retry_count = 0
+                    max_retries = 3
+                    detail_response = None
+                    
+                    while retry_count < max_retries:
+                        try:
+                            # 랜덤 User-Agent 사용
+                            headers = {
+                                'User-Agent': get_random_user_agent(),
+                                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+                                'Accept-Language': 'ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7',
+                                'Referer': 'https://www.carku.kr/',
+                                'Connection': 'keep-alive',
+                            }
+                            
+                            detail_response = requests.get(detail_page, headers=headers, timeout=30)
+                            if detail_response.status_code == 200:
+                                break
+                            
+                            logging.warning(f"상세 페이지 응답 코드: {detail_response.status_code}, 재시도 {retry_count+1}/{max_retries}")
+                            retry_count += 1
+                            time.sleep(3)
+                        except Exception as e:
+                            logging.warning(f"상세 페이지 요청 중 오류, 재시도 {retry_count+1}/{max_retries}")
+                            retry_count += 1
+                            time.sleep(3)
+                    
+                    if not detail_response or detail_response.status_code != 200:
+                        logging.error(f"상세 페이지 요청 실패, 기본 정보만 저장합니다.")
+                    else:
+                        # 상세 페이지 파싱 후 추가 대기 시간 (3-5초)
+                        time.sleep(random.uniform(3, 5))
+                        
+                        detail_soup = BeautifulSoup(detail_response.text, 'html.parser')
+                        
+                        # 상세 페이지 상단 정보 추출
+                        detail_top = detail_soup.select_one('div.detail-top')
+                        
+                        if detail_top:
+                            # 모든 이미지 URL 추출
+                            image_elements = detail_top.select('div.s_img li img')
+                            
+                            for img in image_elements:
+                                if 'onclick' in img.attrs:
+                                    onclick_value = img['onclick']
+                                    try:
+                                        large_img_url = onclick_value.split("'")[1] if "'" in onclick_value else ''
+                                        if large_img_url:
+                                            all_images.append(large_img_url)
+                                    except Exception:
+                                        pass
+                            
+                            # 판매가 및 차량번호 추출
+                            try:
+                                detail_text = detail_top.select_one('div.detail-text')
+                                if detail_text:
+                                    # 판매가 추출
+                                    price_element = detail_text.select_one('table.detail1 th:nth-of-type(1) span.red')
+                                    if price_element:
+                                        sale_price = price_element.text.strip()
+                                    
+                                    # 차량번호 추출
+                                    car_number_element = detail_text.select_one('table.detail1 th:nth-of-type(2) span.red')
+                                    if car_number_element:
+                                        car_number = car_number_element.text.strip()
+                            except Exception:
+                                pass
+                            
+                            # 차량 상세 정보 추출
+                            try:
+                                detail_rows = detail_top.select('table.detail2 tr')
+                                
+                                for row in detail_rows:
+                                    ths = row.find_all('th')
+                                    tds = row.find_all('td')
+                                    
+                                    # 각 행의 첫 번째 th와 td 쌍 처리
+                                    if len(ths) > 0 and len(tds) > 0:
+                                        key = ths[0].text.strip()
+                                        value = tds[0].text.strip()
+                                        
+                                        # 각 항목별로 변수에 할당
+                                        if '년 형 | 등록' in key:
+                                            parts = value.split('|')
+                                            if len(parts) >= 1:
+                                                year_model = parts[0].strip()
+                                            if len(parts) >= 2:
+                                                registration_date = parts[1].strip()
+                                        elif '연료' in key:
+                                            fuel_type = value
+                                        elif '색상' in key:
+                                            color = value
+                                        elif '차대번호' in key:
+                                            vin = value
+                                        elif '압류 | 저당' in key:
+                                            seizure_info = value
+                                        elif '세금미납' in key:
+                                            tax_unpaid = value
+                                        elif '제시번호' in key:
+                                            reference_number = value
+                                        elif '조합정보' in key:
+                                            association_info = value
+                                    
+                                    # 같은 행의 두 번째 th와 td 쌍 처리 (있는 경우)
+                                    if len(ths) > 1 and len(tds) > 1:
+                                        key2 = ths[1].text.strip()
+                                        value2 = tds[1].text.strip()
+                                        
+                                        if '변속기' in key2:
+                                            transmission_type = value2
+                                        elif '주행거리' in key2:
+                                            detailed_mileage = value2
+                                        elif '성능번호' in key2:
+                                            performance_number = value2
+                                        elif '사고정보' in key2:
+                                            accident_info = value2
+                            except Exception:
+                                pass
+                            
+                            # 판매자 정보 추출
+                            try:
+                                seller_table = detail_top.select_one('table.detail3')
+                                if seller_table:
+                                    # 판매자 이미지 추출
+                                    seller_img = seller_table.select_one('img')
+                                    if seller_img and 'src' in seller_img.attrs:
+                                        seller_img_url = seller_img['src']
+                                    
+                                    # 판매자 정보 추출
+                                    seller_rows = seller_table.select('tr')
+                                    
+                                    for seller_row_index, row in enumerate(seller_rows):
+                                        # 첫 번째 행: 판매자 이름
+                                        if seller_row_index == 0:
+                                            name_cell = row.select_one('td')
+                                            if name_cell:
+                                                seller_name = name_cell.text.strip()
+                                        
+                                        # 두 번째 행: 연락처
+                                        elif seller_row_index == 1:
+                                            contact_cell = row.select_one('td')
+                                            if contact_cell:
+                                                seller_contact = contact_cell.text.strip()
+                                        
+                                        # 세 번째 행: 상사
+                                        elif seller_row_index == 2:
+                                            company_cell = row.select_one('td')
+                                            if company_cell:
+                                                seller_company = company_cell.text.strip()
+                                        
+                                        # 네 번째 행: 사원증번호
+                                        elif seller_row_index == 3:
+                                            license_cell = row.select_one('td')
+                                            if license_cell:
+                                                seller_license = license_cell.text.strip()
+                                        
+                                        # 다섯 번째 행: 주소
+                                        elif seller_row_index == 4:
+                                            address_cell = row.select_one('th[colspan="3"]')
+                                            if address_cell:
+                                                seller_address = address_cell.text.strip()
+                            except Exception:
+                                pass
+                        
+                except Exception as e:
+                    logging.error(f"상세 페이지 크롤링 중 오류 발생")
+            
             car_dict = {
                 'image_url': img_url,
+                'detail_page': detail_page,
                 'car_info': car_info,
                 'transmission': transmission,
                 'year': year,
@@ -105,10 +338,37 @@ def scrape_car_data_from_page(soup):
                 'mileage': mileage,
                 'price': price,
                 'contact_info': contact_info,
+                # 상세 페이지에서 추출한 데이터를 개별 필드로 추가
+                'all_images': all_images,
+                'sale_price': sale_price,
+                'car_number': car_number,
+                'year_model': year_model,
+                'registration_date': registration_date,
+                'fuel_type': fuel_type,
+                'transmission_type': transmission_type,
+                'color': color,
+                'detailed_mileage': detailed_mileage,
+                'vin': vin,
+                'performance_number': performance_number,
+                'seizure_info': seizure_info,
+                'accident_info': accident_info,
+                'tax_unpaid': tax_unpaid,
+                'reference_number': reference_number,
+                'association_info': association_info,
+                'seller_name': seller_name,
+                'seller_contact': seller_contact,
+                'seller_company': seller_company,
+                'seller_license': seller_license,
+                'seller_address': seller_address,
+                'seller_img_url': seller_img_url,
                 'timestamp': datetime.now().isoformat()
             }
+            
             car_data.append(car_dict)
+        else:
+            logging.warning(f"행에 충분한 셀이 없습니다. 셀 수: {len(cells)}")
     
+    logging.info(f"총 {len(car_data)}개의 차량 데이터 추출 완료")
     return car_data
 
 def get_random_user_agent():
@@ -162,53 +422,74 @@ def scrape_page(session, url, client):
         }
         
         # 요청 전 랜덤 지연
-        time.sleep(get_random_delay())
+        delay = get_random_delay()
+        logging.info(f"요청 전 {delay:.2f}초 대기 중...")
+        time.sleep(delay)
         
+        logging.info(f"URL 요청 시작: {url}")
         response = session.get(url, headers=headers, timeout=30)
         
         # 응답 상태 코드 확인
         if response.status_code != 200:
-            logging.warning(f"Received status code {response.status_code} for URL: {url}")
+            logging.warning(f"응답 상태 코드 {response.status_code} 받음. URL: {url}")
             if response.status_code == 429:  # Too Many Requests
-                logging.warning("Rate limit detected. Sleeping for 5 minutes...")
+                logging.warning("속도 제한 감지. 5분 대기 중...")
                 time.sleep(300)  # 5분 대기
                 return None, 0
             return None, 0
             
         html = response.text
+        
         soup = BeautifulSoup(html, 'html.parser')
         
-        if "데이터가 없습니다" in soup.text or "존재하지 않는 페이지" in soup.text:
+        if "데이터가 없습니다" in soup.text:
+            logging.warning("페이지에 '데이터가 없습니다' 메시지가 포함되어 있습니다.")
+            return None, 0
+        elif "존재하지 않는 페이지" in soup.text:
+            logging.warning("페이지에 '존재하지 않는 페이지' 메시지가 포함되어 있습니다.")
             return None, 0
         
+        logging.info("차량 데이터 추출 시작...")
         car_data = scrape_car_data_from_page(soup)
+        
         if not car_data:
+            logging.warning("추출된 차량 데이터가 없습니다.")
             return None, 0
         
         # Index the data to OpenSearch
+        logging.info(f"OpenSearch에 {len(car_data)}개의 차량 데이터 인덱싱 시작...")
         indexed_count = 0
-        for car in car_data:
+        
+        for car_index, car in enumerate(car_data):
             try:
-                client.index(
-                    index='carku_goods',
+                # OpenSearch에 인덱싱
+                response = client.index(
+                    index='carku_goods_detail',
                     body=car,
                     refresh=True
                 )
-                indexed_count += 1
-                # 각 인덱싱 사이에 랜덤 지연 (2~5초)
+                
+                if response['result'] == 'created':
+                    indexed_count += 1
+                else:
+                    logging.warning(f"인덱싱 결과: {response['result']}")
+                
+                # 각 인덱싱 사이에 랜덤 지연 (0.5~1.0초)
                 time.sleep(random.uniform(0.5, 1.0))
             except Exception as e:
-                logging.error(f"Error indexing car: {str(e)}")
+                logging.error(f"인덱싱 중 오류 발생: {str(e)}")
                 continue
         
+        logging.info(f"총 {indexed_count}/{len(car_data)}개의 차량 데이터 인덱싱 완료")
         return car_data, indexed_count
     except requests.exceptions.RequestException as e:
-        logging.error(f"Request error: {str(e)}")
+        logging.error(f"요청 오류: {str(e)}")
         # 네트워크 오류 시 더 오래 대기
+        logging.info("네트워크 오류로 인해 60초 대기 중...")
         time.sleep(60)
         return None, 0
     except Exception as e:
-        logging.error(f"Error scraping page: {str(e)}")
+        logging.error(f"페이지 크롤링 중 오류 발생: {str(e)}")
         return None, 0
 
 def scrape_and_index_data(client):
