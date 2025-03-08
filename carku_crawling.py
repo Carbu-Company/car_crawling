@@ -604,8 +604,8 @@ def main():
         
         logging.info(f"Total cars indexed: {total_indexed}")
         
-        index_stats = client.indices.stats(index='carku_goods')
-        logging.info(f"Total documents in index: {index_stats['indices']['carku_goods']['total']['docs']['count']}")
+        index_stats = client.indices.stats(index='carku_goods_detail')
+        logging.info(f"Total documents in index: {index_stats['indices']['carku_goods_detail']['total']['docs']['count']}")
         
     except Exception as e:
         logging.error(f"Error: {str(e)}")
