@@ -22,8 +22,8 @@ logging.basicConfig(
 )
 
 proxies = {
-    'http': 'http://127.0.0.1:9050',
-    'https': 'http://127.0.0.1:9050',
+    'http': 'socks5://127.0.0.1:9050',
+    'https': 'socks5://127.0.0.1:9050',
 }
 
 def create_opensearch_client():
