@@ -493,30 +493,6 @@ def index_car_to_opensearch(client, car_dict, car_index):
         logging.error(f"차량 {car_index} 인덱싱 중 오류 발생: {str(e)}")
         return False
 
-def handle_carku_cloudflare(scraper, url):
-    """Cloudflare 방화벽 처리"""
-    try:
-        # User-Agent를 데스크톱으로 변경
-        desktop_ua = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/110.0.0.0 Safari/537.36'
-        scraper.headers.update({'User-Agent': desktop_ua})
-        
-        # 쿠키 수집을 위해 메인 페이지 방문
-        logging.info("Cloudflare 방화벽 우회를 위해 메인 페이지 방문...")
-        scraper.get('https://www.carku.kr/', timeout=30)
-        time.sleep(3)  # 쿠키 설정 대기
-        
-        # 실제 요청
-        logging.info(f"Cloudflare 처리 후 페이지 요청: {url}")
-        response = scraper.get(url, timeout=30)
-        
-        if response.status_code == 200:
-            return response.text
-        else:
-            logging.warning(f"Cloudflare 우회 후에도 응답 코드: {response.status_code}")
-            return None
-    except Exception as e:
-        logging.error(f"Cloudflare 우회 중 오류: {str(e)}")
-        return None
 
 def scrape_page(url, client):
     """페이지 스크랩 및 데이터 인덱싱"""
@@ -644,29 +620,20 @@ def scrape_and_index_data(client):
                 else:  # 첫 페이지에서 오류 발생 시 재시도
                     logging.warning("Error on first page. Retrying after 2 minutes...")
                     time.sleep(120)
-                    # 세션 재생성
-                    scraper = create_scraper_with_retry()
                     continue
             
             total_indexed += indexed_count
             logging.info(f"Indexed {indexed_count} cars from page {page}")
             
             # 다음 페이지 요청 전 긴 지연 (봇 감지 방지)
-            page_delay = random.uniform(60, 120)
+            page_delay = random.uniform(10, 20)
             logging.info(f"Waiting {page_delay:.2f} seconds before next page...")
             time.sleep(page_delay)
             
             page += 1
         
-    
     except KeyboardInterrupt:
         logging.info("Crawling interrupted by user.")
-    finally:
-        try:
-            scraper.close()
-        except:
-            pass
-    
     return total_indexed
 
 def main():
