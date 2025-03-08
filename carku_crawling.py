@@ -459,20 +459,57 @@ def scrape_page(session, url, client):
         # Index the data to OpenSearch
         logging.info(f"OpenSearch에 {len(car_data)}개의 차량 데이터 인덱싱 시작...")
         indexed_count = 0
+        updated_count = 0
+        skipped_count = 0
         
         for car_index, car in enumerate(car_data):
             try:
-                # OpenSearch에 인덱싱
-                response = client.index(
-                    index='carku_goods_detail',
-                    body=car,
-                    refresh=True
-                )
-                
-                if response['result'] == 'created':
-                    indexed_count += 1
+                # 차대번호가 없는 경우 임의의 ID 생성
+                if not car['vin'] or car['vin'].strip() == '':
+                    # 차대번호가 없는 경우 detail_page URL을 기반으로 ID 생성
+                    doc_id = car['detail_page'].split('=')[-1] if '=' in car['detail_page'] else None
+                    if not doc_id:
+                        # 그래도 ID를 생성할 수 없는 경우 타임스탬프 기반 ID 생성
+                        doc_id = f"unknown_{datetime.now().strftime('%Y%m%d%H%M%S')}_{car_index}"
+                    
+                    logging.warning(f"차대번호 없음, 대체 ID 사용: {doc_id}")
                 else:
-                    logging.warning(f"인덱싱 결과: {response['result']}")
+                    # 차대번호를 ID로 사용
+                    doc_id = car['vin']
+                
+                # 이미 존재하는지 확인
+                try:
+                    existing_doc = client.get(index='carku_goods_detail', id=doc_id)
+                    exists = True
+                except Exception:
+                    exists = False
+                
+                # OpenSearch에 인덱싱
+                if exists:
+                    # 이미 존재하는 경우 업데이트
+                    response = client.update(
+                        index='carku_goods_detail',
+                        id=doc_id,
+                        body={'doc': car},
+                        refresh=True
+                    )
+                    if response['result'] == 'updated':
+                        updated_count += 1
+                        logging.info(f"차량 데이터 업데이트 완료: {doc_id}")
+                    elif response['result'] == 'noop':
+                        skipped_count += 1
+                        logging.info(f"차량 데이터 변경 없음: {doc_id}")
+                else:
+                    # 새로운 문서 추가
+                    response = client.index(
+                        index='carku_goods_detail',
+                        id=doc_id,
+                        body=car,
+                        refresh=True
+                    )
+                    if response['result'] == 'created':
+                        indexed_count += 1
+                        logging.info(f"차량 데이터 인덱싱 성공: {doc_id}")
                 
                 # 각 인덱싱 사이에 랜덤 지연 (0.5~1.0초)
                 time.sleep(random.uniform(0.5, 1.0))
@@ -480,8 +517,8 @@ def scrape_page(session, url, client):
                 logging.error(f"인덱싱 중 오류 발생: {str(e)}")
                 continue
         
-        logging.info(f"총 {indexed_count}/{len(car_data)}개의 차량 데이터 인덱싱 완료")
-        return car_data, indexed_count
+        logging.info(f"총 {indexed_count}개 추가, {updated_count}개 업데이트, {skipped_count}개 변경없음")
+        return car_data, indexed_count + updated_count
     except requests.exceptions.RequestException as e:
         logging.error(f"요청 오류: {str(e)}")
         # 네트워크 오류 시 더 오래 대기
