@@ -7,10 +7,8 @@ import logging
 import sys
 import random
 from fake_useragent import UserAgent
-import socket
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
-import cloudscraper  # 캡챠/방화벽 우회용
 import os
 
 # 로깅 설정
@@ -22,6 +20,11 @@ logging.basicConfig(
         logging.StreamHandler(sys.stdout)
     ]
 )
+
+proxies = {
+    'http': 'http://127.0.0.1:9050',
+    'https': 'http://127.0.0.1:9050',
+}
 
 def create_opensearch_client():
     """OpenSearch 클라이언트 생성"""
@@ -304,20 +307,17 @@ def scrape_car_data_from_page(soup):
     logging.info(f"총 {len(car_data)}개의 차량 기본 데이터 추출 완료")
     return car_data
 
-def fetch_detail_page(scraper, detail_page, car_index, max_retries=3):
+def fetch_detail_page(detail_page, car_index, max_retries=3):
     """상세 페이지 가져오기"""
     retry_count = 0
     
     while retry_count < max_retries:
-        try:
-            # 새로운 User-Agent 사용
-            scraper.headers.update({'User-Agent': get_random_user_agent()})
-            
+        try:            
             # 상세 페이지 요청 시간 측정
             start_time = time.time()
             logging.info(f"[차량 {car_index}] 상세 페이지 요청 시작: {detail_page}")
             
-            response = scraper.get(detail_page, timeout=30)
+            response = requests.get(detail_page, timeout=30, proxies=proxies)
             
             elapsed = time.time() - start_time
             logging.info(f"[차량 {car_index}] 상세 페이지 응답 수신 완료. 소요 시간: {elapsed:.2f}초, 상태 코드: {response.status_code}")
@@ -574,7 +574,7 @@ def handle_carku_cloudflare(scraper, url):
         logging.error(f"Cloudflare 우회 중 오류: {str(e)}")
         return None
 
-def scrape_page(scraper, url, client):
+def scrape_page(url, client):
     """페이지 스크랩 및 데이터 인덱싱"""
     try:
         # 랜덤 지연
@@ -582,14 +582,12 @@ def scrape_page(scraper, url, client):
         logging.info(f"요청 전 {delay:.2f}초 대기 중...")
         time.sleep(delay)
         
-        # 요청 전 User-Agent 변경
-        scraper.headers.update({'User-Agent': get_random_user_agent()})
-        
+        # 요청 전 User-Agent 변경        
         logging.info(f"URL 요청 시작: {url}")
         start_time = time.time()
         
         # 일반 요청 시도
-        response = scraper.get(url, timeout=30)
+        response = requests.get(url, timeout=30, proxies=proxies)
         
         elapsed = time.time() - start_time
         logging.info(f"응답 수신 완료. 소요 시간: {elapsed:.2f}초, 상태 코드: {response.status_code}")
@@ -607,14 +605,7 @@ def scrape_page(scraper, url, client):
         # 응답 내용 유효성 검사
         if not validate_html_content(html):
             logging.warning("응답이 유효하지 않습니다. Cloudflare 방화벽 우회 시도...")
-            # Cloudflare 방화벽 우회 시도
-            html = handle_carku_cloudflare(scraper, url)
-            if not html:
-                logging.error("Cloudflare 방화벽 우회 실패")
-                # 오류 응답 저장
-                save_error_response(response.text, url.split('wCurPage=')[1].split('&')[0])
-                return None, 0
-        
+          
         soup = BeautifulSoup(html, 'html.parser')
         
         if "데이터가 없습니다" in soup.text:
@@ -644,7 +635,7 @@ def scrape_page(scraper, url, client):
                     continue
                 
                 # 상세 페이지 데이터 가져오기
-                detail_html = fetch_detail_page(scraper, detail_page, car_index+1)
+                detail_html = fetch_detail_page(detail_page, car_index+1)
                 
                 # 상세 페이지 데이터 추출
                 if detail_html:
@@ -694,18 +685,12 @@ def scrape_and_index_data(client):
     total_indexed = 0
     page = 1
     
-    # 클라우드스크래퍼 세션 생성 (방화벽 우회)
-    scraper = create_scraper_with_retry()
-    
-    # 크롤링 시작 시간 기록
-    start_time = time.time()
-    
     try:
         while True:
             url = f"{base_url}?wCurPage={page}&wKmS=&wKmE=&wPageSize="
             logging.info(f"Scraping page {page}: {url}")
             
-            car_data, indexed_count = scrape_page(scraper, url, client)
+            car_data, indexed_count = scrape_page(url, client)
             
             if car_data is None:
                 # 페이지가 없거나 오류 발생 시
@@ -728,16 +713,7 @@ def scrape_and_index_data(client):
             time.sleep(page_delay)
             
             page += 1
-            
-            # 과도한 크롤링 방지를 위한 안전장치
-            if page > 100:  # 최대 100페이지로 제한
-                logging.info("최대 페이지 수(100)에 도달했습니다. 크롤링을 종료합니다.")
-                break
-            
-            # 크롤링 최대 시간 제한 (6시간)
-            if time.time() - start_time > 6 * 60 * 60:
-                logging.info("최대 크롤링 시간(6시간)에 도달했습니다. 크롤링을 종료합니다.")
-                break
+        
     
     except KeyboardInterrupt:
         logging.info("Crawling interrupted by user.")
