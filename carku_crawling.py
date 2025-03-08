@@ -126,62 +126,6 @@ def get_random_user_agent():
         ]
         return random.choice(user_agents)
 
-def create_scraper_with_retry():
-    """CloudScraper 세션 생성 (방화벽 우회)"""
-    try:
-        scraper = cloudscraper.create_scraper(
-            browser={
-                'browser': 'chrome',
-                'platform': 'windows',
-                'desktop': True
-            },
-            delay=10
-        )
-        
-        # 재시도 전략 설정
-        retry_strategy = Retry(
-            total=5,  # 최대 재시도 횟수
-            backoff_factor=1,  # 재시도 간격 (1, 2, 4, 8, 16초...)
-            status_forcelist=[429, 500, 502, 503, 504],  # 재시도할 HTTP 상태 코드
-            allowed_methods=["GET"]  # GET 요청만 재시도
-        )
-        
-        adapter = HTTPAdapter(max_retries=retry_strategy)
-        scraper.mount("http://", adapter)
-        scraper.mount("https://", adapter)
-        
-        # 쿠키 및 헤더 초기화
-        scraper.headers.update({
-            'User-Agent': get_random_user_agent(),
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-            'Accept-Language': 'ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7',
-            'Accept-Encoding': 'gzip, deflate, br',
-            'Referer': 'https://www.carku.kr/',
-            'DNT': '1',
-            'Connection': 'keep-alive',
-            'Upgrade-Insecure-Requests': '1',
-            'Cache-Control': 'max-age=0',
-            'sec-ch-ua': '"Chromium";v="110", "Not A(Brand";v="24", "Google Chrome";v="110"',
-            'sec-ch-ua-mobile': '?0',
-            'sec-ch-ua-platform': '"Windows"'
-        })
-        
-        # 초기 메인 페이지 방문하여 쿠키 획득
-        try:
-            logging.info("메인 페이지 방문하여 쿠키 획득 중...")
-            scraper.get('https://www.carku.kr/', timeout=30)
-            time.sleep(2)  # 일부러 지연
-        except Exception as e:
-            logging.warning(f"초기 쿠키 획득 중 오류: {str(e)}")
-        
-        return scraper
-    except Exception as e:
-        logging.error(f"Scraper 생성 중 오류: {str(e)}")
-        # 기본 세션으로 대체
-        session = requests.Session()
-        session.headers.update({'User-Agent': get_random_user_agent()})
-        return session
-
 def get_random_delay(min_sec=5, max_sec=15):
     """랜덤 지연 시간 생성"""
     return random.uniform(min_sec, max_sec)
