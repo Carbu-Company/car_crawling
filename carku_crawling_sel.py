@@ -1,13 +1,18 @@
-import requests
-from bs4 import BeautifulSoup
 import time
+from bs4 import BeautifulSoup
 from opensearchpy import OpenSearch
 from datetime import datetime
 import logging
 import sys
 import random
-from fake_useragent import UserAgent
 import os
+from selenium import webdriver
+from selenium.webdriver.common.by import By
+from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.chrome.service import Service
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.common.exceptions import TimeoutException, NoSuchElementException, WebDriverException
 
 # 로깅 설정
 logging.basicConfig(
@@ -99,48 +104,9 @@ def create_carku_index(client):
         logging.error(f"Error creating index: {str(e)}")
         raise
 
-def get_random_user_agent():
-    """랜덤 User-Agent 생성"""
-    try:
-        ua = UserAgent()
-        return ua.random
-    except:
-        # 기본 User-Agent 목록
-        user_agents = [
-            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.4472.124 Safari/537.36',
-            'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:89.0) Gecko/20100101 Firefox/89.0',
-            'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.1.1 Safari/605.1.15',
-            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36 Edg/91.0.864.59',
-            'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/92.0.4515.107 Safari/537.36',
-            'Mozilla/5.0 (iPhone; CPU iPhone OS 14_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.0 Mobile/15E148 Safari/604.1',
-            'Mozilla/5.0 (iPad; CPU OS 14_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.0 Mobile/15E148 Safari/604.1',
-            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/100.0.4896.127 Safari/537.36',
-            'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/100.0.4896.127 Safari/537.36'
-        ]
-        return random.choice(user_agents)
-
 def get_random_delay(min_sec=5, max_sec=15):
     """랜덤 지연 시간 생성"""
     return random.uniform(min_sec, max_sec)
-
-def validate_html_content(html):
-    """HTML 콘텐츠 유효성 검사"""
-    if not html or len(html) < 500:  # 너무 짧은 응답은 의심스러움
-        return False
-    
-    # 봇 차단 감지
-    suspicious_phrases = [
-        "captcha", "robot", "blocked", "access denied", "too many requests",
-        "rate limit", "비정상적인", "차단", "캡챠", "로봇"
-    ]
-    
-    lower_html = html.lower()
-    for phrase in suspicious_phrases:
-        if phrase in lower_html:
-            logging.warning(f"의심스러운 표현 감지: '{phrase}'")
-            return False
-    
-    return True
 
 def save_error_response(html, page_num):
     """디버깅을 위해 오류 응답 저장"""
@@ -153,6 +119,50 @@ def save_error_response(html, page_num):
         f.write(html)
     
     logging.info(f"오류 응답을 파일에 저장했습니다: {filename}")
+
+def create_webdriver():
+    """Selenium 웹드라이버 생성"""
+    # Chrome 옵션 설정
+    chrome_options = Options()
+    chrome_options.add_argument("--headless")  # 헤드리스 모드
+    chrome_options.add_argument("--no-sandbox")
+    chrome_options.add_argument("--disable-dev-shm-usage")
+    chrome_options.add_argument("--disable-gpu")
+    chrome_options.add_argument("--window-size=1920,1080")
+    
+    # 랜덤 User-Agent 설정
+    user_agents = [
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.4472.124 Safari/537.36',
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:89.0) Gecko/20100101 Firefox/89.0',
+        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.1.1 Safari/605.1.15',
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36 Edg/91.0.864.59',
+        'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/92.0.4515.107 Safari/537.36',
+        'Mozilla/5.0 (iPhone; CPU iPhone OS 14_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.0 Mobile/15E148 Safari/604.1',
+        'Mozilla/5.0 (iPad; CPU OS 14_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.0 Mobile/15E148 Safari/604.1',
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/100.0.4896.127 Safari/537.36',
+        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/100.0.4896.127 Safari/537.36'
+    ]
+    
+    chosen_user_agent = random.choice(user_agents)
+    chrome_options.add_argument(f"user-agent={chosen_user_agent}")
+    
+    # 자동 다운로드 방지 설정 등 추가 옵션
+    chrome_options.add_experimental_option("prefs", {
+        "download.default_directory": "/dev/null",
+        "download.prompt_for_download": False,
+        "download.directory_upgrade": True,
+        "safebrowsing.enabled": True
+    })
+    
+    try:
+        # 웹드라이버 생성 (Chrome WebDriver)
+        # ChromeDriver 경로는 본인 환경에 맞게 설정
+        driver = webdriver.Chrome(options=chrome_options)
+        driver.set_page_load_timeout(30)  # 페이지 로드 타임아웃 30초
+        return driver
+    except Exception as e:
+        logging.error(f"웹드라이버 생성 중 오류: {str(e)}")
+        raise
 
 def scrape_car_data_from_page(soup):
     """페이지에서 차량 데이터 추출"""
@@ -244,8 +254,8 @@ def scrape_car_data_from_page(soup):
     logging.info(f"총 {len(car_data)}개의 차량 기본 데이터 추출 완료")
     return car_data
 
-def fetch_detail_page(detail_page, car_index, max_retries=3):
-    """상세 페이지 가져오기"""
+def fetch_detail_page(driver, detail_page, car_index, max_retries=3):
+    """Selenium을 사용하여 상세 페이지 가져오기"""
     retry_count = 0
     
     while retry_count < max_retries:
@@ -254,35 +264,47 @@ def fetch_detail_page(detail_page, car_index, max_retries=3):
             start_time = time.time()
             logging.info(f"[차량 {car_index}] 상세 페이지 요청 시작: {detail_page}")
             
-            response = requests.get(detail_page, timeout=30)
+            # 페이지 로드
+            driver.get(detail_page)
+            
+            # 페이지가 로드될 때까지 대기
+            WebDriverWait(driver, 10).until(
+                EC.presence_of_element_located((By.TAG_NAME, "body"))
+            )
             
             elapsed = time.time() - start_time
-            logging.info(f"[차량 {car_index}] 상세 페이지 응답 수신 완료. 소요 시간: {elapsed:.2f}초, 상태 코드: {response.status_code}")
+            logging.info(f"[차량 {car_index}] 상세 페이지 로드 완료. 소요 시간: {elapsed:.2f}초")
             
-            if response.status_code != 200:
-                logging.warning(f"[차량 {car_index}] 상세 페이지 응답 코드: {response.status_code}")
-                retry_count += 1
-                time.sleep(5)
-                continue
+            # 페이지 스크롤 (JavaScript 실행을 위해)
+            driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+            time.sleep(1)  # 추가 콘텐츠 로드를 위한 짧은 대기
             
-            html = response.text
+            # 응답 확인
+            html = driver.page_source
             
-            # 응답 내용 유효성 검사
-            if not validate_html_content(html):
-                logging.warning(f"[차량 {car_index}] 상세 페이지 응답이 유효하지 않습니다. 길이: {len(html)} 바이트")
-                # 오류 응답 저장
+            # 봇 감지 또는 오류 페이지 확인
+            if "로봇" in html or "captcha" in html.lower() or "access denied" in html.lower():
+                logging.warning(f"[차량 {car_index}] 봇 감지 또는 접근 차단됨")
                 save_error_response(html, f"detail_{car_index}")
                 retry_count += 1
-                time.sleep(10)
+                time.sleep(get_random_delay(10, 20))
                 continue
-            
+                
             logging.info(f"[차량 {car_index}] 상세 페이지 내용 획득 성공. 길이: {len(html)} 바이트")
             return html
             
+        except TimeoutException:
+            logging.warning(f"[차량 {car_index}] 페이지 로드 타임아웃")
+            retry_count += 1
+            time.sleep(get_random_delay(5, 10))
+        except WebDriverException as e:
+            logging.error(f"[차량 {car_index}] 웹드라이버 오류: {str(e)}")
+            retry_count += 1
+            time.sleep(get_random_delay(5, 10))
         except Exception as e:
             logging.error(f"[차량 {car_index}] 상세 페이지 요청 중 오류: {str(e)}")
             retry_count += 1
-            time.sleep(5)
+            time.sleep(get_random_delay(5, 10))
     
     logging.error(f"[차량 {car_index}] 상세 페이지 가져오기 최대 재시도 횟수 초과")
     return None
@@ -486,38 +508,107 @@ def index_car_to_opensearch(client, car_dict, car_index):
         logging.error(f"차량 {car_index} 인덱싱 중 오류 발생: {str(e)}")
         return False
 
-
-def scrape_page(url, client):
-    """페이지 스크랩 및 데이터 인덱싱"""
+def scrape_and_index_data(client):
+    """Selenium을 사용하여 모든 페이지 스크랩 및 인덱싱"""
+    base_url = 'https://www.carku.kr/search/search.html'
+    
+    total_indexed = 0
+    page = 1
+    
+    # 웹드라이버 생성
+    driver = None
     try:
-        # 요청 전 User-Agent 변경        
+        driver = create_webdriver()
+        
+        while True:
+            url = f"{base_url}?wCurPage={page}&wKmS=&wKmE=&wPageSize="
+            logging.info(f"Scraping page {page}: {url}")
+            
+            car_data, indexed_count = scrape_page(driver, url, client)
+            
+            if car_data is None:
+                # 페이지가 없거나 오류 발생 시
+                if page > 1:  # 첫 페이지가 아니면 크롤링 종료
+                    logging.info(f"페이지 {page}에서 데이터를 찾을 수 없습니다. 크롤링을 종료합니다.")
+                    break
+                else:  # 첫 페이지에서 오류 발생 시 재시도
+                    logging.warning("첫 페이지에서 오류 발생. 2분 후 재시도...")
+                    time.sleep(120)
+                    continue
+            
+            total_indexed += indexed_count
+            logging.info(f"Indexed {indexed_count} cars from page {page}")
+            
+            # 다음 페이지 요청 전 긴 지연 (봇 감지 방지)
+            page_delay = random.uniform(10, 20)
+            logging.info(f"Waiting {page_delay:.2f} seconds before next page...")
+            time.sleep(page_delay)
+            
+            page += 1
+            
+            # 드라이버 세션 리프레시 (10페이지마다)
+            if page % 10 == 0:
+                logging.info("웹드라이버 세션 리프레시를 위해 재시작 중...")
+                driver.quit()
+                driver = create_webdriver()
+                time.sleep(5)
+        
+    except KeyboardInterrupt:
+        logging.info("사용자에 의해 크롤링이 중단되었습니다.")
+    except Exception as e:
+        logging.error(f"크롤링 중 예상치 못한 오류 발생: {str(e)}")
+        import traceback
+        logging.error(traceback.format_exc())
+    finally:
+        # 모든 작업 완료 후 드라이버 종료
+        if driver:
+            driver.quit()
+            logging.info("웹드라이버 종료")
+            
+    return total_indexed
+
+def scrape_page(driver, url, client):
+    """Selenium을 사용하여 페이지 스크랩 및 데이터 인덱싱"""
+    try:
         logging.info(f"URL 요청 시작: {url}")
         start_time = time.time()
         
-        # 일반 요청 시도
-        response = requests.get(url, timeout=10)
+        # Selenium으로 페이지 로드
+        driver.get(url)
+        
+        try:
+            # 페이지가 로드될 때까지 대기
+            WebDriverWait(driver, 15).until(
+                EC.presence_of_element_located((By.TAG_NAME, "table"))
+            )
+        except TimeoutException:
+            logging.warning("페이지 로드 타임아웃")
+            # 타임아웃 발생 시에도 계속 진행 (페이지가 부분적으로 로드되었을 수 있음)
+            pass
         
         elapsed = time.time() - start_time
-        logging.info(f"응답 수신 완료. 소요 시간: {elapsed:.2f}초, 상태 코드: {response.status_code}")
+        logging.info(f"페이지 로드 완료. 소요 시간: {elapsed:.2f}초")
         
-        if response.status_code != 200:
-            logging.warning(f"응답 상태 코드 {response.status_code} 받음. URL: {url}")
-            if response.status_code == 429:  # Too Many Requests
-                logging.warning("속도 제한 감지. 5분 대기 중...")
-                time.sleep(30)  # 5분 대기
-            return None, 0
+        # 스크롤 다운 (JavaScript 기반 컨텐츠 로딩을 위해)
+        driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+        time.sleep(2)  # 추가 컨텐츠 로드를 위한 짧은 대기
         
-        html = response.text
-        logging.info(f"HTML 응답 수신 완료. 길이: {len(html)} 바이트")
+        # 페이지 소스 가져오기
+        html = driver.page_source
+        logging.info(f"HTML 소스 획득 완료. 길이: {len(html)} 바이트")
         
-        soup = BeautifulSoup(html, 'html.parser')
-        
-        if "데이터가 없습니다" in soup.text:
+        # 페이지 콘텐츠 확인
+        if "데이터가 없습니다" in html:
             logging.warning("페이지에 '데이터가 없습니다' 메시지가 포함되어 있습니다.")
+            # 디버깅을 위해 HTML 저장
+            save_error_response(html, f"empty_page_{page}")
             return None, 0
-        elif "존재하지 않는 페이지" in soup.text:
+        elif "존재하지 않는 페이지" in html:
             logging.warning("페이지에 '존재하지 않는 페이지' 메시지가 포함되어 있습니다.")
             return None, 0
+        
+        # BeautifulSoup으로 HTML 파싱
+        soup = BeautifulSoup(html, 'html.parser')
         
         logging.info("차량 데이터 추출 시작...")
         car_data = scrape_car_data_from_page(soup)
@@ -539,7 +630,7 @@ def scrape_page(url, client):
                     continue
                 
                 # 상세 페이지 데이터 가져오기
-                detail_html = fetch_detail_page(detail_page, car_index+1)
+                detail_html = fetch_detail_page(driver, detail_page, car_index+1)
                 
                 # 상세 페이지 데이터 추출
                 if detail_html:
@@ -568,11 +659,14 @@ def scrape_page(url, client):
         logging.info(f"총 {indexed_count}/{len(car_data)}개의 차량 데이터 인덱싱 완료")
         return car_data, indexed_count
     
-    except requests.exceptions.RequestException as e:
-        logging.error(f"요청 오류: {str(e)}")
-        # 네트워크 오류 시 더 오래 대기
-        logging.info("네트워크 오류로 인해 60초 대기 중...")
-        time.sleep(60)
+    except TimeoutException:
+        logging.error(f"요청 타임아웃: {url}")
+        time.sleep(60)  # 타임아웃 시 더 오래 대기
+        return None, 0
+    
+    except WebDriverException as e:
+        logging.error(f"웹드라이버 오류: {str(e)}")
+        time.sleep(60)  # 드라이버 오류 시 더 오래 대기
         return None, 0
     
     except Exception as e:
@@ -582,47 +676,9 @@ def scrape_page(url, client):
         logging.error(traceback.format_exc())
         return None, 0
 
-def scrape_and_index_data(client):
-    """모든 페이지 스크랩 및 인덱싱"""
-    base_url = 'https://www.carku.kr/search/search.html'
-    
-    total_indexed = 0
-    page = 1
-    
-    try:
-        while True:
-            url = f"{base_url}?wCurPage={page}&wKmS=&wKmE=&wPageSize="
-            logging.info(f"Scraping page {page}: {url}")
-            
-            car_data, indexed_count = scrape_page(url, client)
-            
-            if car_data is None:
-                # 페이지가 없거나 오류 발생 시
-                if page > 1:  # 첫 페이지가 아니면 크롤링 종료
-                    logging.info(f"페이지 {page}에서 데이터를 찾을 수 없습니다. 크롤링을 종료합니다.")
-                    break
-                else:  # 첫 페이지에서 오류 발생 시 재시도
-                    logging.warning("Error on first page. Retrying after 2 minutes...")
-                    time.sleep(120)
-                    continue
-            
-            total_indexed += indexed_count
-            logging.info(f"Indexed {indexed_count} cars from page {page}")
-            
-            # 다음 페이지 요청 전 긴 지연 (봇 감지 방지)
-            page_delay = random.uniform(10, 20)
-            logging.info(f"Waiting {page_delay:.2f} seconds before next page...")
-            time.sleep(page_delay)
-            
-            page += 1
-        
-    except KeyboardInterrupt:
-        logging.info("Crawling interrupted by user.")
-    return total_indexed
-
 def main():
     """메인 함수"""
-    logging.info("Starting data collection and indexing to OpenSearch...")
+    logging.info("Starting data collection and indexing to OpenSearch using Selenium...")
     
     try:
         # 오류 응답 디렉토리 생성
