@@ -7,8 +7,6 @@ import logging
 import sys
 import random
 from fake_useragent import UserAgent
-from requests.adapters import HTTPAdapter
-from urllib3.util.retry import Retry
 import os
 
 # 로깅 설정
@@ -20,11 +18,6 @@ logging.basicConfig(
         logging.StreamHandler(sys.stdout)
     ]
 )
-
-proxies = {
-    'http': 'socks5://127.0.0.1:9050',
-    'https': 'socks5://127.0.0.1:9050',
-}
 
 def create_opensearch_client():
     """OpenSearch 클라이언트 생성"""
@@ -261,7 +254,7 @@ def fetch_detail_page(detail_page, car_index, max_retries=3):
             start_time = time.time()
             logging.info(f"[차량 {car_index}] 상세 페이지 요청 시작: {detail_page}")
             
-            response = requests.get(detail_page, timeout=30, proxies=proxies)
+            response = requests.get(detail_page, timeout=30)
             
             elapsed = time.time() - start_time
             logging.info(f"[차량 {car_index}] 상세 페이지 응답 수신 완료. 소요 시간: {elapsed:.2f}초, 상태 코드: {response.status_code}")
@@ -507,7 +500,7 @@ def scrape_page(url, client):
         start_time = time.time()
         
         # 일반 요청 시도
-        response = requests.get(url, timeout=30, proxies=proxies)
+        response = requests.get(url, timeout=30)
         
         elapsed = time.time() - start_time
         logging.info(f"응답 수신 완료. 소요 시간: {elapsed:.2f}초, 상태 코드: {response.status_code}")
