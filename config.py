@@ -23,19 +23,19 @@ RETRY_DELAY = 5  # Retry delay between attempts
 # Wait Times
 def get_page_load_wait():
     """Random wait time for page loading"""
-    return random.uniform(2, 5)
+    return random.uniform(10, 15)
 
 def get_detail_page_wait():
     """Random wait time for detail page loading"""
-    return random.uniform(4, 6)
+    return random.uniform(5, 7)
 
 def get_car_processing_wait():
     """Random wait time between processing cars"""
-    return random.uniform(1.5, 3.0)
+    return random.uniform(3, 5)
 
 def get_pagination_wait():
     """Random wait time after pagination"""
-    return random.uniform(3, 5)
+    return random.uniform(6, 10)
 
 def get_retry_wait():
     """Random wait time before retrying the entire process"""
