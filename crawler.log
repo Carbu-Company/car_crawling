@@ -1,0 +1,76 @@
+2025-03-13 00:29:33,694 - INFO - 엔카 차량 데이터 수집 및 OpenSearch 인덱싱 시작...
+2025-03-13 00:29:33,695 - INFO - Apple Silicon Mac detected, using direct ChromeDriver download
+2025-03-13 00:29:33,835 - INFO - Detected Chrome version: 134
+2025-03-13 00:29:34,147 - ERROR - Error downloading ChromeDriver: HTTP Error 404: Not Found
+2025-03-13 00:29:34,147 - INFO - Trying alternative download method using Chrome for Testing
+2025-03-13 00:29:34,837 - ERROR - Alternative download method failed: HTTP Error 404: Not Found
+2025-03-13 00:29:34,837 - ERROR - WebDriver 설정 중 오류 발생: HTTP Error 404: Not Found
+2025-03-13 00:29:34,844 - ERROR - Traceback (most recent call last):
+  File "/Users/sonseongjun/IdeaProjects/car_crawling/driver_setup.py", line 94, in setup_driver
+    chromedriver_version = urllib.request.urlopen(download_url).read().decode('utf-8')
+                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sonseongjun/miniconda3/lib/python3.12/urllib/request.py", line 215, in urlopen
+    return opener.open(url, data, timeout)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sonseongjun/miniconda3/lib/python3.12/urllib/request.py", line 521, in open
+    response = meth(req, response)
+               ^^^^^^^^^^^^^^^^^^^
+  File "/Users/sonseongjun/miniconda3/lib/python3.12/urllib/request.py", line 630, in http_response
+    response = self.parent.error(
+               ^^^^^^^^^^^^^^^^^^
+  File "/Users/sonseongjun/miniconda3/lib/python3.12/urllib/request.py", line 559, in error
+    return self._call_chain(*args)
+           ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sonseongjun/miniconda3/lib/python3.12/urllib/request.py", line 492, in _call_chain
+    result = func(*args)
+             ^^^^^^^^^^^
+  File "/Users/sonseongjun/miniconda3/lib/python3.12/urllib/request.py", line 639, in http_error_default
+    raise HTTPError(req.full_url, code, msg, hdrs, fp)
+urllib.error.HTTPError: HTTP Error 404: Not Found
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/Users/sonseongjun/IdeaProjects/car_crawling/driver_setup.py", line 121, in setup_driver
+    chromedriver_version = urllib.request.urlopen(alt_url).read().decode('utf-8')
+                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sonseongjun/miniconda3/lib/python3.12/urllib/request.py", line 215, in urlopen
+    return opener.open(url, data, timeout)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sonseongjun/miniconda3/lib/python3.12/urllib/request.py", line 521, in open
+    response = meth(req, response)
+               ^^^^^^^^^^^^^^^^^^^
+  File "/Users/sonseongjun/miniconda3/lib/python3.12/urllib/request.py", line 630, in http_response
+    response = self.parent.error(
+               ^^^^^^^^^^^^^^^^^^
+  File "/Users/sonseongjun/miniconda3/lib/python3.12/urllib/request.py", line 559, in error
+    return self._call_chain(*args)
+           ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sonseongjun/miniconda3/lib/python3.12/urllib/request.py", line 492, in _call_chain
+    result = func(*args)
+             ^^^^^^^^^^^
+  File "/Users/sonseongjun/miniconda3/lib/python3.12/urllib/request.py", line 639, in http_error_default
+    raise HTTPError(req.full_url, code, msg, hdrs, fp)
+urllib.error.HTTPError: HTTP Error 404: Not Found
+
+2025-03-13 00:29:34,845 - ERROR - 크롤링 실패 (1/3): HTTP Error 404: Not Found
+2025-03-13 00:29:34,845 - INFO - 59초 후 재시도합니다...
+2025-03-13 00:29:45,510 - INFO - 엔카 차량 데이터 수집 및 OpenSearch 인덱싱 시작...
+2025-03-13 00:29:45,510 - INFO - ====== WebDriver manager ======
+2025-03-13 00:29:45,597 - INFO - Get LATEST chromedriver version for google-chrome
+2025-03-13 00:29:45,746 - INFO - Get LATEST chromedriver version for google-chrome
+2025-03-13 00:29:45,898 - INFO - Get LATEST chromedriver version for google-chrome
+2025-03-13 00:29:46,253 - INFO - WebDriver version 134.0.6998.88 selected
+2025-03-13 00:29:46,255 - INFO - Modern chrome version https://storage.googleapis.com/chrome-for-testing-public/134.0.6998.88/mac-arm64/chromedriver-mac-arm64.zip
+2025-03-13 00:29:46,255 - INFO - About to download new driver from https://storage.googleapis.com/chrome-for-testing-public/134.0.6998.88/mac-arm64/chromedriver-mac-arm64.zip
+2025-03-13 00:29:46,322 - INFO - Driver downloading response is 200
+2025-03-13 00:29:46,568 - INFO - Get LATEST chromedriver version for google-chrome
+2025-03-13 00:29:46,830 - INFO - Driver has been saved in cache [/Users/sonseongjun/.wdm/drivers/chromedriver/mac64/134.0.6998.88]
+2025-03-13 00:29:48,055 - INFO - WebDriver가 성공적으로 설정되었습니다.
+2025-03-13 00:29:48,055 - INFO - OpenSearch 클라이언트 생성 및 인덱스 설정 중...
+2025-03-13 00:29:48,056 - INFO - OpenSearch 클라이언트가 성공적으로 생성되었습니다.
+2025-03-13 00:29:48,366 - INFO - HEAD http://14.6.96.11:1006/encar_cars_detail [status:200 request:0.310s]
+2025-03-13 00:29:48,366 - INFO - OpenSearch 설정 완료
+2025-03-13 00:29:48,366 - INFO - 
+===== 1페이지 크롤링 시작 =====
+
