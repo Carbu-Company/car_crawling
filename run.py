@@ -8,8 +8,27 @@ import logging
 import sys
 import time
 import traceback
+import signal
+import platform
+import subprocess
 from main import crawl_encar
+import driver_setup
 import config
+
+def signal_handler(sig, frame):
+    """
+    Handle termination signals and clean up resources.
+    """
+    logging.info("프로그램 종료 신호를 받았습니다. 리소스를 정리합니다...")
+    
+    # Chrome 관련 프로세스 강제 종료
+    try:
+        driver_setup.kill_chrome_processes()
+        logging.info("Chrome 프로세스 정리 완료")
+    except Exception as e:
+        logging.error(f"프로세스 정리 중 오류: {e}")
+    
+    sys.exit(0)
 
 def setup_logging():
     """
@@ -98,6 +117,10 @@ def main():
     """
     Main function to run the crawler.
     """
+    # 종료 신호 핸들러 등록
+    signal.signal(signal.SIGINT, signal_handler)
+    signal.signal(signal.SIGTERM, signal_handler)
+    
     # 로깅 설정
     logger = setup_logging()
     
@@ -108,6 +131,13 @@ def main():
     config.MAX_PAGES = args.pages
     config.HEADLESS_MODE = args.headless
     config.MAX_RETRIES = args.retries
+    
+    # 기존 Chrome 프로세스 정리
+    try:
+        driver_setup.kill_chrome_processes()
+        logger.info("기존 Chrome 프로세스 정리 완료")
+    except Exception as e:
+        logger.error(f"프로세스 정리 중 오류: {e}")
     
     # 크롤링 시작 메시지
     logger.info("=" * 50)
@@ -145,6 +175,13 @@ def main():
         logger.error(f"소요 시간: {elapsed_time:.2f}초")
         logger.error("=" * 50)
         return 1
+    finally:
+        # 프로그램 종료 전 최종 프로세스 정리
+        try:
+            driver_setup.kill_chrome_processes()
+            logger.info("Chrome 프로세스 정리 완료")
+        except Exception as e:
+            logger.error(f"프로세스 정리 중 오류: {e}")
     
     return 0
 

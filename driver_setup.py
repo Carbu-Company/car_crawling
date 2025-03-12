@@ -5,6 +5,8 @@ Module for setting up the Selenium WebDriver with anti-detection measures.
 import os
 import time
 import logging
+import platform
+import subprocess
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.chrome.options import Options
@@ -129,10 +131,61 @@ def cleanup_driver(driver):
     """
     try:
         if driver:
-            driver.quit()
-            logging.info("WebDriver가 성공적으로 종료되었습니다.")
+            logging.info("WebDriver 종료 중...")
+            
+            # 열려있는 모든 창 닫기 시도
+            try:
+                for handle in driver.window_handles:
+                    driver.switch_to.window(handle)
+                    driver.close()
+                logging.info("모든 브라우저 창을 닫았습니다.")
+            except Exception as e:
+                logging.warning(f"브라우저 창 닫기 중 오류 발생: {e}")
+            
+            # 드라이버 종료
+            try:
+                driver.quit()
+                logging.info("WebDriver가 정상적으로 종료되었습니다.")
+            except Exception as e:
+                logging.warning(f"WebDriver 종료 중 오류 발생: {e}")
+            
+            # Chrome 및 ChromeDriver 프로세스 강제 종료
+            kill_chrome_processes()
+            
     except Exception as e:
-        logging.error(f"WebDriver 종료 중 오류 발생: {e}")
+        logging.error(f"WebDriver 정리 중 오류 발생: {e}")
+        # 오류가 발생해도 프로세스 정리 시도
+        kill_chrome_processes()
+
+def kill_chrome_processes():
+    """
+    Kill any remaining Chrome and ChromeDriver processes.
+    """
+    try:
+        system = platform.system()
+        
+        if system == "Darwin" or system == "Linux":  # macOS 또는 Linux
+            logging.info("Chrome 관련 프로세스 정리 중...")
+            
+            # Chrome 프로세스 종료
+            subprocess.run(["pkill", "-f", "chrome"], check=False)
+            
+            # ChromeDriver 프로세스 종료
+            subprocess.run(["pkill", "-f", "chromedriver"], check=False)
+            
+            logging.info("Chrome 관련 프로세스 정리 완료")
+            
+        elif system == "Windows":  # Windows
+            logging.info("Chrome 관련 프로세스 정리 중...")
+            
+            # Windows에서는 taskkill 명령어 사용
+            subprocess.run(["taskkill", "/F", "/IM", "chrome.exe"], check=False, shell=True)
+            subprocess.run(["taskkill", "/F", "/IM", "chromedriver.exe"], check=False, shell=True)
+            
+            logging.info("Chrome 관련 프로세스 정리 완료")
+            
+    except Exception as e:
+        logging.error(f"프로세스 정리 중 오류 발생: {e}")
 
 def take_screenshot(driver, filename=None):
     """

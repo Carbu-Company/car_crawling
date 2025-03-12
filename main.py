@@ -5,6 +5,8 @@ Main module for the Encar crawler.
 import time
 import logging
 import sys
+import platform
+import subprocess
 from selenium.webdriver.common.by import By
 import config
 import driver_setup
@@ -22,6 +24,14 @@ logging.basicConfig(
         logging.StreamHandler(sys.stdout)
     ]
 )
+
+def cleanup_existing_processes():
+    """
+    Clean up any existing Chrome and ChromeDriver processes before starting the crawler.
+    """
+    logging.info("기존 Chrome 및 ChromeDriver 프로세스 정리 중...")
+    driver_setup.kill_chrome_processes()
+    logging.info("기존 프로세스 정리 완료")
 
 def crawl_page(driver, page_number, all_car_data, opensearch_client=None):
     """
@@ -106,17 +116,23 @@ def crawl_page(driver, page_number, all_car_data, opensearch_client=None):
     
     return page_car_data
 
-def crawl_encar(use_opensearch=True):
+def crawl_encar(start_page=1, max_pages=None, save_all=True, use_opensearch=True):
     """
     Main function to crawl the Encar website.
     
     Args:
+        start_page: Page number to start crawling from
+        max_pages: Maximum number of pages to crawl
+        save_all: Whether to save all data to a single file
         use_opensearch: Whether to use OpenSearch for indexing
     """
-    driver = driver_setup.setup_driver()
+    driver = None
     opensearch_client = None
     
     try:
+        # WebDriver 설정
+        driver = driver_setup.setup_driver()
+        
         # OpenSearch 클라이언트 설정 (사용하는 경우)
         if use_opensearch:
             try:
@@ -133,12 +149,17 @@ def crawl_encar(use_opensearch=True):
         all_car_data = []
         
         # 현재 페이지 번호
-        current_page = 1
+        current_page = start_page
+        
+        # 최대 페이지 수 설정
+        if max_pages is None:
+            max_pages = config.MAX_PAGES
         
         # 페이지 크롤링 계속 진행 여부
         continue_crawling = True
+        pages_crawled = 0
         
-        while continue_crawling:
+        while continue_crawling and (pages_crawled < max_pages):
             # 현재 페이지 크롤링
             page_car_data = crawl_page(driver, current_page, all_car_data, opensearch_client)
             
@@ -147,8 +168,12 @@ def crawl_encar(use_opensearch=True):
                 logging.info("더 이상 차량이 없습니다. 크롤링을 종료합니다.")
                 break
             
+            # 페이지 카운트 증가
+            pages_crawled += 1
+            
             # 최대 페이지 수 확인
-            if not pagination_handler.should_continue_crawling(current_page):
+            if pages_crawled >= max_pages:
+                logging.info(f"최대 페이지 수({max_pages})에 도달했습니다. 크롤링을 종료합니다.")
                 break
             
             # 다음 페이지로 이동
@@ -161,7 +186,7 @@ def crawl_encar(use_opensearch=True):
                 current_page = next_page
         
         # 모든 페이지의 데이터를 하나의 CSV 파일로 저장
-        if all_car_data:
+        if all_car_data and save_all:
             data_processor.save_all_data(all_car_data)
             data_processor.print_data_summary(all_car_data)
             
@@ -174,17 +199,25 @@ def crawl_encar(use_opensearch=True):
         
     except Exception as e:
         logging.error(f"크롤링 중 오류 발생: {e}")
+        import traceback
+        logging.error(traceback.format_exc())
     
     finally:
         # 브라우저 종료 전 랜덤 대기
         time.sleep(config.get_browser_close_wait())
-        driver.quit()
+        
+        # WebDriver 정리
+        if driver:
+            driver_setup.cleanup_driver(driver)
 
 def main():
     """
     Entry point of the program with retry mechanism.
     """
     logging.info("엔카 차량 데이터 수집 및 OpenSearch 인덱싱 시작...")
+    
+    # 기존 Chrome 프로세스 정리
+    cleanup_existing_processes()
     
     # 최대 재시도 횟수
     retry_count = 0
@@ -194,11 +227,14 @@ def main():
             # OpenSearch 사용 여부 설정 (기본값: True)
             use_opensearch = True
             
-            crawl_encar(use_opensearch)
+            crawl_encar(use_opensearch=use_opensearch)
             break  # 성공적으로 완료되면 루프 종료
         except Exception as e:
             retry_count += 1
             logging.error(f"크롤링 실패 ({retry_count}/{config.MAX_RETRIES}): {e}")
+            
+            # 실패 시 남아있는 프로세스 정리
+            driver_setup.kill_chrome_processes()
             
             if retry_count < config.MAX_RETRIES:
                 wait_time = config.get_retry_wait()
@@ -206,6 +242,9 @@ def main():
                 time.sleep(wait_time)
             else:
                 logging.error("최대 재시도 횟수를 초과했습니다. 프로그램을 종료합니다.")
+    
+    # 프로그램 종료 전 최종 프로세스 정리
+    driver_setup.kill_chrome_processes()
 
 if __name__ == "__main__":
     main() 
