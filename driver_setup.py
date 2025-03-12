@@ -1,10 +1,11 @@
 """
-Module for setting up the Selenium WebDriver with anti-detection measures.
+Module for setting up the WebDriver for the Encar crawler.
 """
 
 import os
 import time
 import logging
+import platform
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.chrome.options import Options
@@ -17,7 +18,7 @@ import config
 
 def setup_driver():
     """
-    Set up and configure a Chrome WebDriver with anti-detection measures.
+    Set up and configure the Chrome WebDriver.
     
     Returns:
         WebDriver: Configured Chrome WebDriver instance
@@ -26,39 +27,65 @@ def setup_driver():
         # 크롬 옵션 설정
         chrome_options = Options()
         
-        # 차단 방지를 위한 설정들
+        # 헤드리스 모드 설정 (UI 없음)
         if config.HEADLESS_MODE:
-            chrome_options.add_argument("--headless")  # 웹 브라우저를 열지 않도록 설정
+            chrome_options.add_argument("--headless=new")
         
-        chrome_options.add_argument("--disable-blink-features=AutomationControlled")
-        chrome_options.add_argument("--disable-dev-shm-usage")
+        # 기타 옵션 설정
         chrome_options.add_argument("--no-sandbox")
+        chrome_options.add_argument("--disable-dev-shm-usage")
         chrome_options.add_argument("--disable-gpu")
+        chrome_options.add_argument("--window-size=1920,1080")
+        chrome_options.add_argument("--disable-notifications")
         
-        # User-Agent 설정 (실제 브라우저처럼 보이게)
-        chrome_options.add_argument(f'user-agent={config.USER_AGENT}')
+        # User-Agent 설정
+        chrome_options.add_argument(f"user-agent={config.USER_AGENT}")
         
-        # 브라우저 창 크기 설정 (headless 모드에서는 무시됨)
-        chrome_options.add_argument(f"--window-size={config.WINDOW_SIZE}")
+        # 언어 설정
+        chrome_options.add_argument("--lang=ko-KR")
         
-        # 자동화 감지 플래그 제거
-        chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
-        chrome_options.add_experimental_option('useAutomationExtension', False)
+        # 로깅 레벨 설정
+        chrome_options.add_argument("--log-level=3")
         
-        # 드라이버 설정
-        driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=chrome_options)
+        # ChromeDriver 설정
+        system_platform = platform.system()
+        is_arm_mac = system_platform == "Darwin" and platform.machine() == "arm64"
         
-        # 자동화 감지 회피를 위한 추가 설정
-        driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
+        if is_arm_mac:
+            logging.info("Apple Silicon Mac detected, using specific ChromeDriver setup")
+            # For Apple Silicon Macs, we need to be more specific
+            service = Service(ChromeDriverManager().install())
+            
+            # Verify the driver exists and is executable
+            if not os.path.isfile(service.path):
+                logging.error(f"ChromeDriver not found at {service.path}")
+                raise FileNotFoundError(f"ChromeDriver not found at {service.path}")
+            
+            # Make sure the file is executable
+            if not os.access(service.path, os.X_OK):
+                logging.info(f"Making ChromeDriver executable: {service.path}")
+                os.chmod(service.path, 0o755)
+        else:
+            # For other platforms, use the standard approach
+            service = Service(ChromeDriverManager().install())
+        
+        # WebDriver 생성
+        driver = webdriver.Chrome(service=service, options=chrome_options)
         
         # 페이지 로드 타임아웃 설정
         driver.set_page_load_timeout(30)
+        
+        # 자동화 감지 방지
+        driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
         
         logging.info("WebDriver가 성공적으로 설정되었습니다.")
         return driver
     
     except Exception as e:
         logging.error(f"WebDriver 설정 중 오류 발생: {e}")
+        # Print more detailed error information
+        import traceback
+        logging.error(traceback.format_exc())
         raise
 
 def navigate_to_url(driver, url):
