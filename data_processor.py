@@ -52,21 +52,6 @@ def save_all_data(all_car_data):
         logging.warning("저장할 데이터가 없습니다.")
         return None
     
-    try:
-        # 데이터프레임으로 변환
-        df = pd.DataFrame(all_car_data)
-        
-        # 파일명 생성
-        # filename = config.get_all_data_filename()
-        
-        # CSV 파일로 저장
-        # df.to_csv(filename, index=False, encoding="utf-8-sig")
-        
-        logging.info(f"총 {len(all_car_data)}개의 차량 정보가 {filename}에 저장되었습니다.")
-        return filename
-    except Exception as e:
-        logging.error(f"전체 데이터 저장 중 오류 발생: {e}")
-        return None
 
 def print_data_summary(car_data):
     """
