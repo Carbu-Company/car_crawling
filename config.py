@@ -12,7 +12,7 @@ BASE_URL = "https://www.encar.com/dc/dc_carsearchlist.do?carType=kor#!%7B%22acti
 # Browser Configuration
 USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 WINDOW_SIZE = "1920,1080"
-HEADLESS_MODE = False  # Set to True to run in headless mode
+HEADLESS_MODE = True  # Set to True to run in headless mode
 
 # Crawler Configuration
 MAX_PAGES = 1500  # Maximum number of pages to crawl
