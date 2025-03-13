@@ -4,35 +4,86 @@ Module for extracting detailed car information from car detail pages.
 
 import time
 import logging
+import os
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
+from selenium.common.exceptions import (
+    TimeoutException, 
+    NoSuchElementException, 
+    WebDriverException,
+    InvalidSessionIdException
+)
 import config
+import driver_setup
 
-def get_car_detail_info(driver, detail_url):
+def is_session_valid(driver):
     """
-    Extract detailed information from a car's detail page.
+    Check if the WebDriver session is still valid.
+    
+    Args:
+        driver: Selenium WebDriver instance
+        
+    Returns:
+        bool: True if session is valid, False otherwise
+    """
+    try:
+        # 간단한 명령을 실행해서 세션이 유효한지 확인
+        driver.current_url
+        return True
+    except (WebDriverException, InvalidSessionIdException):
+        logging.error("WebDriver 세션이 유효하지 않습니다.")
+        return False
+
+def get_car_detail_info(driver, detail_url, max_retries=2):
+    """
+    Get detailed car information from the car detail page.
     
     Args:
         driver: Selenium WebDriver instance
         detail_url: URL of the car detail page
+        max_retries: Maximum number of retries
         
     Returns:
         dict: Dictionary containing detailed car information
     """
     detail_info = {}
     retry_count = 0
+    original_window = driver.current_window_handle
     
-    while retry_count < config.MAX_DETAIL_RETRIES:
+    while retry_count < max_retries:
         try:
+            # 세션 유효성 확인
+            if not is_session_valid(driver):
+                logging.warning("세션이 유효하지 않아 드라이버를 재설정합니다.")
+                # 기존 드라이버 정리
+                try:
+                    driver_setup.cleanup_driver(driver)
+                except:
+                    pass
+                
+                # 새 드라이버 설정
+                driver = driver_setup.setup_driver()
+                driver_setup.navigate_to_url(driver, config.BASE_URL)
+                time.sleep(config.get_page_load_wait())
+                
+                # 세션 재설정 후 상세 정보 가져오기 중단
+                return {"세션오류": "세션이 재설정되었습니다"}
+            
+            # 현재 열려있는 창 수 확인
+            window_count_before = len(driver.window_handles)
+            
             # 새 탭에서 상세 페이지 열기
             driver.execute_script(f"window.open('{detail_url}', '_blank');")
             
             # 새 탭으로 전환
+            WebDriverWait(driver, 10).until(
+                lambda d: len(d.window_handles) > window_count_before
+            )
             driver.switch_to.window(driver.window_handles[-1])
             
             # 페이지 로드 대기
-            time.sleep(config.get_detail_page_wait())
+            time.sleep(config.get_detail_page_load_wait())
             
             # 세부정보 버튼 클릭
             try:
@@ -43,7 +94,7 @@ def get_car_detail_info(driver, detail_url):
                 
                 # 버튼이 보이도록 스크롤
                 driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", detail_button)
-                time.sleep(config.get_scroll_wait())  # 스크롤 후 잠시 대기
+                time.sleep(1)  # 스크롤 후 잠시 대기
                 
                 # 버튼 클릭
                 WebDriverWait(driver, 10).until(
@@ -70,7 +121,24 @@ def get_car_detail_info(driver, detail_url):
                         value = item.find_element(By.CSS_SELECTOR, config.SELECTORS["detail_value"]).text
                         
                         # 키 이름 정리
-                        mapped_key = config.DETAIL_KEY_MAPPING.get(key, key)
+                        key_mapping = {
+                            "차량번호": "차량번호",
+                            "연식": "상세연식",
+                            "주행거리": "상세주행거리",
+                            "배기량": "배기량",
+                            "연료": "상세연료",
+                            "변속기": "변속기",
+                            "차종": "차종",
+                            "색상": "색상",
+                            "지역": "상세지역",
+                            "인승": "인승",
+                            "수입구분": "수입구분",
+                            "압류 · 저당": "압류저당",
+                            "조회수": "조회수",
+                            "찜": "찜수"
+                        }
+                        
+                        mapped_key = key_mapping.get(key, key)
                         detail_info[mapped_key] = value
                         
                     except Exception as e:
@@ -84,7 +152,7 @@ def get_car_detail_info(driver, detail_url):
                 logging.error(f"세부정보 버튼 클릭 또는 팝업 처리 중 오류: {e}")
                 retry_count += 1
                 
-                # 스크린샷 저장 (디버깅용)
+                # 오류 스크린샷 저장
                 try:
                     screenshot_file = config.get_error_screenshot_filename()
                     driver.save_screenshot(screenshot_file)
@@ -94,19 +162,30 @@ def get_car_detail_info(driver, detail_url):
             
             finally:
                 # 탭 닫기
-                driver.close()
+                try:
+                    driver.close()
+                except (WebDriverException, InvalidSessionIdException):
+                    logging.warning("탭을 닫는 중 오류가 발생했습니다. 세션이 유효하지 않을 수 있습니다.")
                 
                 # 원래 탭으로 돌아가기
-                driver.switch_to.window(driver.window_handles[0])
+                try:
+                    driver.switch_to.window(original_window)
+                except (WebDriverException, InvalidSessionIdException):
+                    logging.error("원래 탭으로 돌아가는 중 오류가 발생했습니다. 세션이 유효하지 않습니다.")
+                    return {"세션오류": "세션이 유효하지 않습니다"}
                 
         except Exception as e:
             logging.error(f"상세 페이지 처리 중 오류 발생: {e}")
             retry_count += 1
             
             # 오류 발생 시 원래 탭으로 돌아가기
-            if len(driver.window_handles) > 1:
-                driver.close()
-                driver.switch_to.window(driver.window_handles[0])
+            try:
+                if len(driver.window_handles) > 1:
+                    driver.close()
+                    driver.switch_to.window(original_window)
+            except (WebDriverException, InvalidSessionIdException):
+                logging.error("창 처리 중 오류가 발생했습니다. 세션이 유효하지 않습니다.")
+                return {"세션오류": "세션이 유효하지 않습니다"}
     
     return detail_info
 

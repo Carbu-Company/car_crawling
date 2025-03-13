@@ -45,21 +45,31 @@ def crawl_page(driver, page_number, all_car_data, opensearch_client=None):
         
     Returns:
         list: List of car data dictionaries from this page
+        bool: Flag indicating if driver needs to be reset
     """
     logging.info(f"\n===== {page_number}페이지 크롤링 시작 =====\n")
     
+    # 세션 유효성 확인
+    if not car_detail_extractor.is_session_valid(driver):
+        logging.error("WebDriver 세션이 유효하지 않습니다. 드라이버를 재설정해야 합니다.")
+        return [], True
+    
     # 페이지로 이동
     if not pagination_handler.navigate_to_page(driver, page_number):
-        return []
+        return [], False
     
     # 차량 목록 가져오기
-    car_items = driver.find_elements(By.CSS_SELECTOR, config.SELECTORS["car_items"])
-    logging.info(f"총 {len(car_items)}개의 차량을 발견했습니다.")
+    try:
+        car_items = driver.find_elements(By.CSS_SELECTOR, config.SELECTORS["car_items"])
+        logging.info(f"총 {len(car_items)}개의 차량을 발견했습니다.")
+    except Exception as e:
+        logging.error(f"차량 목록을 가져오는 중 오류 발생: {e}")
+        return [], True  # 드라이버 재설정 필요
     
     # 현재 페이지에 차량이 없으면 빈 리스트 반환
     if len(car_items) == 0:
         logging.info("더 이상 차량이 없습니다.")
-        return []
+        return [], False
     
     # 데이터 저장용 리스트 (현재 페이지)
     page_car_data = []
@@ -67,10 +77,17 @@ def crawl_page(driver, page_number, all_car_data, opensearch_client=None):
     # 진행 상황 표시
     total_cars = len(car_items)
     indexed_count = 0
+    reset_needed = False
     
     for idx, car in enumerate(car_items):
         try:
             logging.info(f"차량 {idx+1}/{total_cars} 처리 중...")
+            
+            # 세션 유효성 재확인
+            if not car_detail_extractor.is_session_valid(driver):
+                logging.error("WebDriver 세션이 유효하지 않습니다. 나머지 차량 처리를 중단합니다.")
+                reset_needed = True
+                break
             
             # 기본 차량 정보 추출
             car_info = car_detail_extractor.extract_car_info(car, all_car_data)
@@ -86,6 +103,12 @@ def crawl_page(driver, page_number, all_car_data, opensearch_client=None):
             logging.info(f"차량 ID {car_info['차량ID']}의 상세 정보를 가져오는 중...")
             detail_info = car_detail_extractor.get_car_detail_info(driver, car_info["상세페이지URL"])
             
+            # 세션 오류 확인
+            if "세션오류" in detail_info:
+                logging.error("세션 오류가 발생했습니다. 드라이버를 재설정해야 합니다.")
+                reset_needed = True
+                break
+            
             # 기본 정보와 상세 정보 병합
             car_info.update(detail_info)
             
@@ -99,22 +122,28 @@ def crawl_page(driver, page_number, all_car_data, opensearch_client=None):
                     indexed_count += 1
             
             # 중간 저장
-            # data_processor.save_checkpoint(page_car_data, idx, page_number)
+            data_processor.save_checkpoint(page_car_data, idx, page_number)
             
             # 인간처럼 행동하기 위한 짧은 대기
             time.sleep(config.get_car_processing_wait())
             
         except Exception as e:
             logging.error(f"차량 정보 추출 중 오류 발생: {e}")
+            # 세션 오류인지 확인
+            if "invalid session id" in str(e) or "no such session" in str(e):
+                logging.error("세션 오류가 감지되었습니다. 드라이버를 재설정해야 합니다.")
+                reset_needed = True
+                break
             continue
     
     # 현재 페이지 데이터 저장
-    data_processor.save_page_data(page_car_data, page_number)
+    if page_car_data:
+        data_processor.save_page_data(page_car_data, page_number)
     
-    if opensearch_client:
+    if opensearch_client and page_car_data:
         logging.info(f"페이지 {page_number}에서 총 {indexed_count}/{len(page_car_data)}개의 차량 데이터 인덱싱 완료")
     
-    return page_car_data
+    return page_car_data, reset_needed
 
 def crawl_encar(start_page=1, max_pages=None, save_all=True, use_opensearch=True):
     """
@@ -161,7 +190,22 @@ def crawl_encar(start_page=1, max_pages=None, save_all=True, use_opensearch=True
         
         while continue_crawling and (pages_crawled < max_pages):
             # 현재 페이지 크롤링
-            page_car_data = crawl_page(driver, current_page, all_car_data, opensearch_client)
+            page_car_data, reset_needed = crawl_page(driver, current_page, all_car_data, opensearch_client)
+            
+            # 드라이버 재설정이 필요한 경우
+            if reset_needed:
+                logging.warning("WebDriver 세션 오류로 인해 드라이버를 재설정합니다.")
+                
+                # 기존 드라이버 정리
+                if driver:
+                    driver_setup.cleanup_driver(driver)
+                
+                # 새 드라이버 설정
+                driver = driver_setup.setup_driver()
+                
+                # 현재 페이지 다시 시도
+                logging.info(f"페이지 {current_page}를 다시 시도합니다.")
+                continue
             
             # 페이지에 차량이 없으면 크롤링 종료
             if not page_car_data:
