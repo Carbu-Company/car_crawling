@@ -15,7 +15,7 @@ WINDOW_SIZE = "1920,1080"
 HEADLESS_MODE = True  # Set to True to run in headless mode
 
 # Crawler Configuration
-MAX_PAGES = 5  # Maximum number of pages to crawl
+MAX_PAGES = 1500  # Maximum number of pages to crawl
 MAX_RETRIES = 3  # Maximum number of retries for the entire crawling process
 MAX_DETAIL_RETRIES = 2  # Maximum number of retries for detail page extraction
 RETRY_DELAY = 5  # Retry delay between attempts
