@@ -166,14 +166,32 @@ def go_to_next_page(driver, current_page):
         # 다음 페이지 버튼 찾기 (현재 페이지가 10의 배수이면 다음 10페이지 버튼, 아니면 다음 페이지 번호)
         if current_page % 10 == 0:
             # 다음 10페이지 버튼 클릭
-            next_button = pagination.find_element(By.CSS_SELECTOR, config.SELECTORS["next_button"])
-            next_page = int(next_button.get_attribute("data-page"))
-            next_button.click()
+            try:
+                next_button = pagination.find_element(By.CSS_SELECTOR, config.SELECTORS["next_button"])
+                next_page = int(next_button.get_attribute("data-page"))
+                next_button.click()
+            except NoSuchElementException:
+                logging.warning("다음 10페이지 버튼을 찾을 수 없습니다. 마지막 페이지로 간주합니다.")
+                return None
         else:
             # 다음 페이지 번호 클릭
             next_page = current_page + 1
-            next_page_link = pagination.find_element(By.CSS_SELECTOR, f"a[data-page='{next_page}']")
-            next_page_link.click()
+            try:
+                next_page_link = pagination.find_element(By.CSS_SELECTOR, f"a[data-page='{next_page}']")
+                next_page_link.click()
+            except NoSuchElementException:
+                # 다음 페이지 링크가 없는 경우
+                logging.info(f"페이지 {next_page}의 링크를 찾을 수 없습니다. 마지막 페이지로 간주합니다.")
+                
+                # 마지막 페이지인지 확인 (다음 버튼 확인)
+                try:
+                    pagination.find_element(By.CSS_SELECTOR, config.SELECTORS["next_button"])
+                    # 다음 버튼이 있으면 다음 10페이지로 이동
+                    return go_to_next_page(driver, (current_page // 10) * 10)
+                except NoSuchElementException:
+                    # 다음 버튼도 없으면 완전히 마지막 페이지
+                    logging.info("더 이상 페이지가 없습니다. 크롤링을 종료합니다.")
+                    return None
         
         # 페이지 로드 대기
         time.sleep(config.get_pagination_wait())
@@ -185,7 +203,7 @@ def go_to_next_page(driver, current_page):
         
         return next_page
     except Exception as e:
-        print(f"다음 페이지로 이동 중 오류 발생: {e}")
+        logging.error(f"다음 페이지로 이동 중 오류 발생: {e}")
         return None
 
 def should_continue_crawling(current_page, max_pages=None):
