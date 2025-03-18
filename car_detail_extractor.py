@@ -87,6 +87,17 @@ def get_car_detail_info(driver, detail_url, max_retries=2):
             
             # 세부정보 버튼 클릭
             try:
+                # 배너 닫기 버튼이 있는지 확인하고 닫기
+                try:
+                    banner_close_button = WebDriverWait(driver, 3).until(
+                        EC.element_to_be_clickable((By.CSS_SELECTOR, ".DetailBannerPcRandom_btn_close__pIopu"))
+                    )
+                    banner_close_button.click()
+                    time.sleep(0.5)  # 배너가 사라지길 기다림
+                    logging.info("배너를 닫았습니다.")
+                except:
+                    logging.debug("닫을 배너가 없습니다.")
+                
                 # 스크롤을 버튼 위치로 이동
                 detail_button = WebDriverWait(driver, 10).until(
                     EC.presence_of_element_located((By.CSS_SELECTOR, config.SELECTORS["detail_button"]))
@@ -152,13 +163,13 @@ def get_car_detail_info(driver, detail_url, max_retries=2):
                 logging.error(f"세부정보 버튼 클릭 또는 팝업 처리 중 오류: {e}")
                 retry_count += 1
                 
-                # 오류 스크린샷 저장
-                try:
-                    screenshot_file = config.get_error_screenshot_filename()
-                    driver.save_screenshot(screenshot_file)
-                    logging.info(f"오류 스크린샷이 {screenshot_file}에 저장되었습니다.")
-                except:
-                    pass
+                # 오류 스크린샷 저장 코드 비활성화
+                # try:
+                #     screenshot_file = config.get_error_screenshot_filename()
+                #     driver.save_screenshot(screenshot_file)
+                #     logging.info(f"오류 스크린샷이 {screenshot_file}에 저장되었습니다.")
+                # except:
+                #     pass
             
             finally:
                 # 탭 닫기
