@@ -16,6 +16,8 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import TimeoutException, NoSuchElementException
 from webdriver_manager.chrome import ChromeDriverManager
 import config
+import tempfile
+import uuid
 
 def setup_driver():
     """
@@ -38,6 +40,10 @@ def setup_driver():
         chrome_options.add_argument("--no-sandbox")
         chrome_options.add_argument("--disable-gpu")
         chrome_options.add_argument(f'user-agent={config.USER_AGENT}')
+        
+        # 사용자 데이터 디렉토리 관련 오류 방지를 위해 유니크한 사용자 데이터 디렉토리 설정
+        temp_dir = os.path.join(tempfile.gettempdir(), f"chrome_data_{uuid.uuid4().hex}")
+        chrome_options.add_argument(f"--user-data-dir={temp_dir}")
         
         # 자동화 감지 플래그 제거
         chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
