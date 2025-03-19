@@ -18,6 +18,7 @@ from webdriver_manager.chrome import ChromeDriverManager
 import config
 import tempfile
 import uuid
+import random
 
 def setup_driver():
     """
@@ -248,6 +249,10 @@ def handle_robot_check(driver):
         if "recaptcha" in driver.page_source.lower() or "robot" in driver.page_source.lower() or "보안문자" in driver.page_source.lower():
             logging.warning("로봇 감지 페이지가 발견되었습니다. 자동 처리를 시도합니다.")
             
+            # 현재 URL 저장
+            current_url = driver.current_url
+            logging.info(f"현재 URL 저장: {current_url}")
+            
             # IP 우회를 위한 브라우저 재실행 시도
             logging.info("새로운 세션으로 재시도합니다...")
             
@@ -257,29 +262,51 @@ def handle_robot_check(driver):
             except:
                 pass
             
-            # 페이지 새로고침 시도
+            # 랜덤 대기 시간 추가
+            wait_time = random.uniform(3, 8)
+            time.sleep(wait_time)
+            
+            # 메인 페이지로 이동하여 쿠키 초기화
             try:
-                driver.refresh()
+                driver.get("https://www.encar.com")
+                time.sleep(3)
+                logging.info("메인 페이지로 이동했습니다.")
+            except Exception as e:
+                logging.error(f"메인 페이지로 이동 실패: {e}")
+            
+            # 다시 원래 페이지로 이동
+            try:
+                logging.info(f"원래 페이지로 다시 이동합니다: {current_url}")
+                driver.get(current_url)
                 time.sleep(5)  # 페이지 로딩 대기
-                logging.info("페이지를 새로고침했습니다.")
-            except:
-                pass
-            
-            # 로봇 감지가 여전히 있는지 확인
-            if "recaptcha" in driver.page_source.lower() or "robot" in driver.page_source.lower() or "보안문자" in driver.page_source.lower():
-                logging.warning("로봇 감지가 계속됩니다. 다른 URL로 우회를 시도합니다.")
                 
-                # 메인 페이지로 이동하여 쿠키 초기화
-                try:
-                    driver.get("https://www.encar.com")
-                    time.sleep(3)
-                    logging.info("메인 페이지로 이동했습니다.")
-                    return True  # 메인 페이지로 이동 후 계속 진행
-                except:
-                    logging.error("메인 페이지로 이동 실패")
-                    return False
-            
-            return True  # 새로고침 성공
+                # 로봇 감지가 여전히 있는지 확인
+                if "recaptcha" in driver.page_source.lower() or "robot" in driver.page_source.lower() or "보안문자" in driver.page_source.lower():
+                    logging.warning("로봇 감지가 계속됩니다. IP 변경이 필요할 수 있습니다.")
+                    
+                    # 세션 초기화를 위해 브라우저 쿠키 삭제
+                    try:
+                        driver.delete_all_cookies()
+                        logging.info("모든 쿠키를 삭제했습니다.")
+                        time.sleep(2)
+                        
+                        # 다시 원래 페이지로 이동
+                        driver.get(current_url)
+                        time.sleep(5)
+                        logging.info("쿠키 삭제 후 페이지에 다시 접속했습니다.")
+                    except Exception as e:
+                        logging.error(f"쿠키 삭제 중 오류 발생: {e}")
+                        
+                    # 여전히 로봇 감지가 있으면 실패로 처리
+                    if "recaptcha" in driver.page_source.lower() or "robot" in driver.page_source.lower() or "보안문자" in driver.page_source.lower():
+                        logging.error("로봇 감지 우회에 실패했습니다.")
+                        return False
+                
+                return True  # 성공적으로 원래 페이지로 돌아옴
+                
+            except Exception as e:
+                logging.error(f"원래 페이지로 돌아가는 중 오류 발생: {e}")
+                return False
                 
         # 로봇 확인 페이지가 아니면 그냥 진행
         return True
