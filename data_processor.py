@@ -30,7 +30,7 @@ def save_page_data(car_data, page_number):
         filename = config.get_page_filename(page_number)
         
         # CSV 파일로 저장
-        df.to_csv(filename, index=False, encoding="utf-8-sig")
+        # df.to_csv(filename, index=False, encoding="utf-8-sig")
         
         logging.info(f"페이지 {page_number}의 데이터가 {filename}에 저장되었습니다.")
         return filename

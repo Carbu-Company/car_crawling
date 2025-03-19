@@ -122,7 +122,7 @@ def crawl_page(driver, page_number, all_car_data, opensearch_client=None):
                     indexed_count += 1
             
             # 중간 저장
-            data_processor.save_checkpoint(page_car_data, idx, page_number)
+            # data_processor.save_checkpoint(page_car_data, idx, page_number)
             
             # 인간처럼 행동하기 위한 짧은 대기
             time.sleep(config.get_car_processing_wait())
@@ -137,8 +137,8 @@ def crawl_page(driver, page_number, all_car_data, opensearch_client=None):
             continue
     
     # 현재 페이지 데이터 저장
-    if page_car_data:
-        data_processor.save_page_data(page_car_data, page_number)
+    # if page_car_data:
+    #     data_processor.save_page_data(page_car_data, page_number)
     
     if opensearch_client and page_car_data:
         logging.info(f"페이지 {page_number}에서 총 {indexed_count}/{len(page_car_data)}개의 차량 데이터 인덱싱 완료")
