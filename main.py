@@ -49,6 +49,15 @@ def crawl_page(driver, page_number, all_car_data, opensearch_client=None):
     """
     logging.info(f"\n===== {page_number}페이지 크롤링 시작 =====\n")
     
+    # 로봇 감지 후 충분한 시간이 지났는지 확인
+    current_time = time.time()
+    if hasattr(config, 'LAST_ROBOT_DETECTION') and config.LAST_ROBOT_DETECTION > 0:
+        time_since_detection = current_time - config.LAST_ROBOT_DETECTION
+        if time_since_detection < config.ROBOT_DETECTION_COOLDOWN:
+            wait_time = min(config.ROBOT_DETECTION_COOLDOWN - time_since_detection, 60)  # 최대 60초 대기
+            logging.info(f"로봇 감지 후 {wait_time:.0f}초 동안 대기합니다...")
+            time.sleep(wait_time)
+    
     # 세션 유효성 확인
     if not car_detail_extractor.is_session_valid(driver):
         logging.error("WebDriver 세션이 유효하지 않습니다. 드라이버를 재설정해야 합니다.")

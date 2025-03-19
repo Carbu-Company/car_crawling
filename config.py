@@ -11,8 +11,19 @@ BASE_URL = "http://www.encar.com/dc/dc_carsearchlist.do?carType=kor#!%7B%22actio
 
 # Browser Configuration
 USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+
+# 다양한 유저 에이전트 목록
+USER_AGENTS = [
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Safari/605.1.15",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/115.0",
+    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+]
+
 WINDOW_SIZE = "1920,1080"
-HEADLESS_MODE = False  # Set to True to run in headless mode
+HEADLESS_MODE = True  # Set to True to run in headless mode
 
 # Crawler Configuration
 MAX_PAGES = 1500  # Maximum number of pages to crawl
@@ -171,4 +182,8 @@ SCREENSHOTS_DIR = "screenshots"  # Directory to save screenshots
 LOG_DIR = "logs"
 LOG_LEVEL = "INFO"
 LOG_FORMAT = "%(asctime)s - %(levelname)s - %(message)s"
-LOG_DATE_FORMAT = "%Y-%m-%d %H:%M:%S" 
+LOG_DATE_FORMAT = "%Y-%m-%d %H:%M:%S"
+
+# 로봇 감지 관련 설정
+LAST_ROBOT_DETECTION = 0  # 마지막 로봇 감지 시간 (Unix timestamp)
+ROBOT_DETECTION_COOLDOWN = 300  # 로봇 감지 후 대기 시간 (초) 
