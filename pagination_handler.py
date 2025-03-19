@@ -9,6 +9,7 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import TimeoutException, NoSuchElementException
 import config
+from driver_setup import handle_robot_check
 
 def get_total_pages(driver):
     """
@@ -127,8 +128,9 @@ def navigate_to_page(driver, page_number):
         bool: True if navigation was successful, False otherwise
     """
     try:
-        # 현재 페이지 URL 설정
-        url = config.BASE_URL.format(page=page_number)
+        # 현재 페이지 URL 설정 (페이지 번호를 직접 대입)
+        url = config.BASE_URL.format(page_number)
+        logging.info(f"페이지 {page_number}로 URL을 통해 직접 이동합니다: {url}")
         
         # 페이지 로드
         driver.get(url)
@@ -138,12 +140,17 @@ def navigate_to_page(driver, page_number):
             EC.presence_of_element_located((By.CSS_SELECTOR, config.SELECTORS["car_list"]))
         )
         
+        # 로봇 감지 페이지 확인 및 처리
+        if not handle_robot_check(driver):
+            logging.warning(f"페이지 {page_number}로 이동 중 로봇 감지 처리에 실패했습니다.")
+            # 로봇 감지 실패해도 계속 진행 시도
+            
         # 인간처럼 행동하기 위한 랜덤 대기
         time.sleep(config.get_page_load_wait())
         
         return True
     except Exception as e:
-        print(f"페이지 {page_number}로 이동 중 오류 발생: {e}")
+        logging.error(f"페이지 {page_number}로 이동 중 오류 발생: {e}")
         return False
 
 def go_to_next_page(driver, current_page):

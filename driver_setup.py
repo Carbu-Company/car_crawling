@@ -83,6 +83,12 @@ def navigate_to_url(driver, url):
         # 페이지 로딩을 WebDriverWait로 대체하여 안정성 향상
         WebDriverWait(driver, 10).until(lambda d: d.execute_script("return document.readyState") == "complete")
         logging.info("페이지 로딩 완료")
+        
+        # 로봇 감지 확인 및 처리
+        if not handle_robot_check(driver):
+            logging.warning("로봇 감지 처리에 실패했습니다.")
+            return False
+            
         return True
 
     except Exception as e:
@@ -225,3 +231,59 @@ def take_screenshot(driver, filename=None):
     except Exception as e:
         logging.error(f"스크린샷 저장 중 오류 발생: {e}")
         return None
+
+def handle_robot_check(driver):
+    """
+    브라우저가 로봇인지 확인하는 페이지를 감지하고 자동으로 처리를 시도합니다.
+    
+    Args:
+        driver: Selenium WebDriver instance
+        
+    Returns:
+        bool: True if robot check was handled or no robot check was found, False otherwise
+    """
+    try:
+        # 현재 페이지가 로봇 검사 페이지인지 확인
+        # URL이나 특정 텍스트를 기반으로 확인
+        if "recaptcha" in driver.page_source.lower() or "robot" in driver.page_source.lower() or "보안문자" in driver.page_source.lower():
+            logging.warning("로봇 감지 페이지가 발견되었습니다. 자동 처리를 시도합니다.")
+            
+            # IP 우회를 위한 브라우저 재실행 시도
+            logging.info("새로운 세션으로 재시도합니다...")
+            
+            # 스크린샷 저장 (디버깅 목적)
+            try:
+                take_screenshot(driver, "robot_detection.png")
+            except:
+                pass
+            
+            # 페이지 새로고침 시도
+            try:
+                driver.refresh()
+                time.sleep(5)  # 페이지 로딩 대기
+                logging.info("페이지를 새로고침했습니다.")
+            except:
+                pass
+            
+            # 로봇 감지가 여전히 있는지 확인
+            if "recaptcha" in driver.page_source.lower() or "robot" in driver.page_source.lower() or "보안문자" in driver.page_source.lower():
+                logging.warning("로봇 감지가 계속됩니다. 다른 URL로 우회를 시도합니다.")
+                
+                # 메인 페이지로 이동하여 쿠키 초기화
+                try:
+                    driver.get("https://www.encar.com")
+                    time.sleep(3)
+                    logging.info("메인 페이지로 이동했습니다.")
+                    return True  # 메인 페이지로 이동 후 계속 진행
+                except:
+                    logging.error("메인 페이지로 이동 실패")
+                    return False
+            
+            return True  # 새로고침 성공
+                
+        # 로봇 확인 페이지가 아니면 그냥 진행
+        return True
+        
+    except Exception as e:
+        logging.error(f"로봇 감지 처리 중 오류 발생: {e}")
+        return False
