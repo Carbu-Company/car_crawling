@@ -76,20 +76,21 @@ def get_car_detail_info(driver, detail_url, max_retries=2):
             # 새 탭에서 상세 페이지 열기
             driver.execute_script(f"window.open('{detail_url}', '_blank');")
             
-            # 새 탭으로 전환
-            WebDriverWait(driver, 10).until(
+            # 새 탭으로 전환 (타임아웃 증가)
+            WebDriverWait(driver, 30).until(  # 10초에서 30초로 증가
                 lambda d: len(d.window_handles) > window_count_before
             )
             driver.switch_to.window(driver.window_handles[-1])
             
-            # 페이지 로드 대기
-            time.sleep(config.get_detail_page_load_wait())
+            # 페이지 로드 대기 (대기 시간 증가)
+            detail_wait_time = max(config.get_detail_page_load_wait() * 2, 10)  # 최소 10초, 기본값의 2배
+            time.sleep(detail_wait_time)
             
             # 세부정보 버튼 클릭
             try:
                 # 배너 닫기 버튼이 있는지 확인하고 닫기
                 try:
-                    banner_close_button = WebDriverWait(driver, 3).until(
+                    banner_close_button = WebDriverWait(driver, 5).until(  # 3초에서 5초로 증가
                         EC.element_to_be_clickable((By.CSS_SELECTOR, ".DetailBannerPcRandom_btn_close__pIopu"))
                     )
                     banner_close_button.click()
@@ -99,7 +100,7 @@ def get_car_detail_info(driver, detail_url, max_retries=2):
                     logging.debug("닫을 배너가 없습니다.")
                 
                 # 스크롤을 버튼 위치로 이동
-                detail_button = WebDriverWait(driver, 10).until(
+                detail_button = WebDriverWait(driver, 30).until(  # 10초에서 30초로 증가
                     EC.presence_of_element_located((By.CSS_SELECTOR, config.SELECTORS["detail_button"]))
                 )
                 
@@ -108,12 +109,12 @@ def get_car_detail_info(driver, detail_url, max_retries=2):
                 time.sleep(1)  # 스크롤 후 잠시 대기
                 
                 # 버튼 클릭
-                WebDriverWait(driver, 10).until(
+                WebDriverWait(driver, 30).until(  # 10초에서 30초로 증가
                     EC.element_to_be_clickable((By.CSS_SELECTOR, config.SELECTORS["detail_button"]))
                 ).click()
                 
                 # 팝업이 나타날 때까지 대기
-                WebDriverWait(driver, 10).until(
+                WebDriverWait(driver, 30).until(  # 10초에서 30초로 증가
                     EC.presence_of_element_located((By.CSS_SELECTOR, config.SELECTORS["detail_popup"]))
                 )
                 
@@ -184,6 +185,22 @@ def get_car_detail_info(driver, detail_url, max_retries=2):
                 except (WebDriverException, InvalidSessionIdException):
                     logging.error("원래 탭으로 돌아가는 중 오류가 발생했습니다. 세션이 유효하지 않습니다.")
                     return {"세션오류": "세션이 유효하지 않습니다"}
+                
+        except TimeoutException as e:
+            logging.error(f"상세 페이지 처리 중 타임아웃 발생: {e}")
+            retry_count += 1
+            
+            # 타임아웃 오류 발생 시 좀 더 오래 대기
+            time.sleep(10 + retry_count * 5)  # 첫 재시도: 15초, 두 번째 재시도: 20초
+            
+            # 창 정리 시도
+            try:
+                if len(driver.window_handles) > 1:
+                    driver.close()
+                    driver.switch_to.window(original_window)
+            except (WebDriverException, InvalidSessionIdException):
+                logging.error("타임아웃 후 창 처리 중 오류가 발생했습니다. 세션이 유효하지 않습니다.")
+                return {"세션오류": "세션이 유효하지 않습니다"}
                 
         except Exception as e:
             logging.error(f"상세 페이지 처리 중 오류 발생: {e}")

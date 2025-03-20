@@ -19,6 +19,7 @@ import config
 import tempfile
 import uuid
 import random
+from selenium.webdriver.common.desired_capabilities import DesiredCapabilities
 
 def setup_driver():
     """
@@ -53,13 +54,32 @@ def setup_driver():
         # WebDriver 설정 및 다운로드
         driver_path = ChromeDriverManager().install()
         service = Service(driver_path)
+        
+        # 서비스 시작 타임아웃 증가
+        service.start_error_message = "Chrome 드라이버 서비스를 시작하지 못했습니다."
+        service.service_url = None
+        
         driver = webdriver.Chrome(service=service, options=chrome_options)
+        
+        # 타임아웃 설정
+        if hasattr(driver, 'command_executor'):
+            driver.command_executor._conn.timeout = 300.0  # 120초에서 300초로 증가
         
         # 자동화 감지 회피를 위한 추가 설정
         driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
         
         # 페이지 로드 타임아웃 설정
-        driver.set_page_load_timeout(30)
+        driver.set_page_load_timeout(60)  # 30초에서 60초로 증가
+        
+        # 요청 타임아웃 설정
+        capabilities = DesiredCapabilities.CHROME
+        capabilities["pageLoadStrategy"] = "eager"  # 페이지가 일부만 로드되어도 진행
+        capabilities["timeouts"] = {
+            "implicit": 30000,  # 암시적 대기 시간 (밀리초)
+            "pageLoad": 60000,  # 페이지 로드 타임아웃 (밀리초)
+            "script": 30000     # 스크립트 실행 타임아웃 (밀리초)
+        }
+        
         logging.info("WebDriver가 성공적으로 설정되었습니다.")
         return driver
 

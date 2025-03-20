@@ -8,6 +8,7 @@ import sys
 import platform
 import subprocess
 from selenium.webdriver.common.by import By
+from selenium.common.exceptions import TimeoutException, WebDriverException
 import config
 import driver_setup
 import car_detail_extractor
@@ -170,6 +171,11 @@ def crawl_encar(start_page=55, max_pages=None, save_all=True, use_opensearch=Tru
     try:
         # WebDriver 설정
         driver = driver_setup.setup_driver()
+        
+        # WebDriver 커맨드 타임아웃 설정 (기본 120초에서 300초로 증가)
+        if hasattr(driver, 'command_executor'):
+            driver.command_executor._conn.timeout = 300.0
+            logging.info(f"WebDriver 커맨드 타임아웃을 {driver.command_executor._conn.timeout}초로 설정했습니다.")
         
         # OpenSearch 클라이언트 설정 (사용하는 경우)
         if use_opensearch:
