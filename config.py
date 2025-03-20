@@ -23,7 +23,7 @@ USER_AGENTS = [
 ]
 
 WINDOW_SIZE = "1920,1080"
-HEADLESS_MODE = True  # Set to True to run in headless mode
+HEADLESS_MODE = False  # Set to True to run in headless mode
 
 # Crawler Configuration
 MAX_PAGES = 1500  # Maximum number of pages to crawl
