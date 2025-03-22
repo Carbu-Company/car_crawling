@@ -155,7 +155,7 @@ def crawl_page(driver, page_number, all_car_data, opensearch_client=None):
     
     return page_car_data, reset_needed
 
-def crawl_encar(start_page=59, max_pages=None, save_all=True, use_opensearch=True):
+def crawl_encar(start_page=61, max_pages=None, save_all=True, use_opensearch=True):
     """
     Main function to crawl the Encar website.
     
@@ -172,10 +172,15 @@ def crawl_encar(start_page=59, max_pages=None, save_all=True, use_opensearch=Tru
         # WebDriver 설정
         driver = driver_setup.setup_driver()
         
-        # WebDriver 커맨드 타임아웃 설정 (기본 120초에서 300초로 증가)
+        # WebDriver 커맨드 타임아웃 설정 (기본 120초에서 600초로 증가)
         if hasattr(driver, 'command_executor'):
-            driver.command_executor._conn.timeout = 300.0
+            driver.command_executor._conn.timeout = 600.0
             logging.info(f"WebDriver 커맨드 타임아웃을 {driver.command_executor._conn.timeout}초로 설정했습니다.")
+            
+            # Set page load timeout and script timeout
+            driver.set_page_load_timeout(300)
+            driver.set_script_timeout(300)
+            logging.info("페이지 로드 및 스크립트 타임아웃을 300초로 설정했습니다.")
         
         # OpenSearch 클라이언트 설정 (사용하는 경우)
         if use_opensearch:
@@ -205,44 +210,99 @@ def crawl_encar(start_page=59, max_pages=None, save_all=True, use_opensearch=Tru
         
         while continue_crawling and (pages_crawled < max_pages):
             # 현재 페이지 크롤링
-            page_car_data, reset_needed = crawl_page(driver, current_page, all_car_data, opensearch_client)
-            
-            # 드라이버 재설정이 필요한 경우
-            if reset_needed:
-                logging.warning("WebDriver 세션 오류로 인해 드라이버를 재설정합니다.")
+            try:
+                page_car_data, reset_needed = crawl_page(driver, current_page, all_car_data, opensearch_client)
                 
-                # 기존 드라이버 정리
+                # 드라이버 재설정이 필요한 경우
+                if reset_needed:
+                    logging.warning("WebDriver 세션 오류로 인해 드라이버를 재설정합니다.")
+                    
+                    # 기존 드라이버 정리
+                    if driver:
+                        driver_setup.cleanup_driver(driver)
+                    
+                    # 새 드라이버 설정
+                    driver = driver_setup.setup_driver()
+                    
+                    # WebDriver 타임아웃 재설정
+                    if hasattr(driver, 'command_executor'):
+                        driver.command_executor._conn.timeout = 600.0
+                        driver.set_page_load_timeout(300)
+                        driver.set_script_timeout(300)
+                    
+                    # 현재 페이지 다시 시도
+                    logging.info(f"페이지 {current_page}를 다시 시도합니다.")
+                    continue
+                
+                # 페이지에 차량이 없으면 크롤링 종료
+                if not page_car_data:
+                    logging.info("더 이상 차량이 없습니다. 크롤링을 종료합니다.")
+                    break
+                
+                # 페이지 카운트 증가
+                pages_crawled += 1
+                
+                # 최대 페이지 수 확인
+                if pages_crawled >= max_pages:
+                    logging.info(f"최대 페이지 수({max_pages})에 도달했습니다. 크롤링을 종료합니다.")
+                    break
+                
+                # 다음 페이지로 이동
+                try:
+                    next_page = pagination_handler.go_to_next_page(driver, current_page)
+                    
+                    if next_page is None:
+                        logging.info("마지막 페이지에 도달했거나 페이지 이동에 실패했습니다.")
+                        continue_crawling = False
+                    else:
+                        current_page = next_page
+                except TimeoutException as e:
+                    logging.error(f"다음 페이지로 이동 중 타임아웃 발생: {e}")
+                    # 드라이버 재설정
+                    logging.warning("타임아웃으로 인해 드라이버를 재설정합니다.")
+                    if driver:
+                        driver_setup.cleanup_driver(driver)
+                    driver = driver_setup.setup_driver()
+                    # WebDriver 타임아웃 재설정
+                    if hasattr(driver, 'command_executor'):
+                        driver.command_executor._conn.timeout = 600.0
+                        driver.set_page_load_timeout(300)
+                        driver.set_script_timeout(300)
+                    # 다음 페이지로 이동
+                    current_page += 1
+                    continue
+                
+            except TimeoutException as e:
+                logging.error(f"페이지 {current_page} 처리 중 타임아웃 발생: {e}")
+                # 드라이버 재설정
                 if driver:
                     driver_setup.cleanup_driver(driver)
-                
-                # 새 드라이버 설정
                 driver = driver_setup.setup_driver()
-                
-                # 현재 페이지 다시 시도
-                logging.info(f"페이지 {current_page}를 다시 시도합니다.")
+                # WebDriver 타임아웃 재설정
+                if hasattr(driver, 'command_executor'):
+                    driver.command_executor._conn.timeout = 600.0
+                    driver.set_page_load_timeout(300)
+                    driver.set_script_timeout(300)
+                # 다음 페이지로 이동
+                current_page += 1
                 continue
-            
-            # 페이지에 차량이 없으면 크롤링 종료
-            if not page_car_data:
-                logging.info("더 이상 차량이 없습니다. 크롤링을 종료합니다.")
-                break
-            
-            # 페이지 카운트 증가
-            pages_crawled += 1
-            
-            # 최대 페이지 수 확인
-            if pages_crawled >= max_pages:
-                logging.info(f"최대 페이지 수({max_pages})에 도달했습니다. 크롤링을 종료합니다.")
-                break
-            
-            # 다음 페이지로 이동
-            next_page = pagination_handler.go_to_next_page(driver, current_page)
-            
-            if next_page is None:
-                logging.info("마지막 페이지에 도달했거나 페이지 이동에 실패했습니다.")
-                continue_crawling = False
-            else:
-                current_page = next_page
+            except WebDriverException as e:
+                if "timeout" in str(e).lower():
+                    logging.error(f"WebDriver 타임아웃 발생: {e}")
+                    # 드라이버 재설정
+                    if driver:
+                        driver_setup.cleanup_driver(driver)
+                    driver = driver_setup.setup_driver()
+                    # WebDriver 타임아웃 재설정
+                    if hasattr(driver, 'command_executor'):
+                        driver.command_executor._conn.timeout = 600.0
+                        driver.set_page_load_timeout(300)
+                        driver.set_script_timeout(300)
+                    # 다음 페이지로 이동
+                    current_page += 1
+                    continue
+                else:
+                    raise
         
         # 모든 페이지의 데이터를 하나의 CSV 파일로 저장
         if all_car_data and save_all:
@@ -266,8 +326,20 @@ def crawl_encar(start_page=59, max_pages=None, save_all=True, use_opensearch=Tru
         time.sleep(config.get_browser_close_wait())
         
         # WebDriver 정리
-        if driver:
-            driver_setup.cleanup_driver(driver)
+        try:
+            if driver:
+                # 타임아웃 방지를 위해 안전하게 종료
+                try:
+                    driver.set_page_load_timeout(30)
+                    driver.set_script_timeout(30)
+                except Exception:
+                    pass
+                    
+                driver_setup.cleanup_driver(driver)
+        except Exception as e:
+            logging.error(f"WebDriver 정리 중 오류 발생: {e}")
+            # 강제로 프로세스 종료
+            driver_setup.kill_chrome_processes()
 
 def main():
     """
