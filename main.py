@@ -56,7 +56,7 @@ def crawl_page(driver, page_number, all_car_data, opensearch_client=None):
     if hasattr(config, 'LAST_ROBOT_DETECTION') and config.LAST_ROBOT_DETECTION > 0:
         time_since_detection = current_time - config.LAST_ROBOT_DETECTION
         if time_since_detection < config.ROBOT_DETECTION_COOLDOWN:
-            wait_time = min(config.ROBOT_DETECTION_COOLDOWN - time_since_detection, 60)  # 최대 60초 대기
+            wait_time = min(config.ROBOT_DETECTION_COOLDOWN - time_since_detection, 10)  # 최대 60초 대기
             logging.info(f"로봇 감지 후 {wait_time:.0f}초 동안 대기합니다...")
             time.sleep(wait_time)
     
@@ -247,7 +247,7 @@ def crawl_page(driver, page_number, all_car_data, opensearch_client=None):
     
     return page_car_data, reset_needed
 
-def crawl_encar(start_page=61, max_pages=None, save_all=True, use_opensearch=True):
+def crawl_encar(start_page=62, max_pages=None, save_all=True, use_opensearch=True):
     """
     Main function to crawl the Encar website.
     
