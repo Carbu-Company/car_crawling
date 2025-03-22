@@ -247,7 +247,7 @@ def crawl_page(driver, page_number, all_car_data, opensearch_client=None):
     
     return page_car_data, reset_needed
 
-def crawl_encar(start_page=62, max_pages=None, save_all=True, use_opensearch=True):
+def crawl_encar(start_page=65, max_pages=None, save_all=True, use_opensearch=True):
     """
     Main function to crawl the Encar website.
     
