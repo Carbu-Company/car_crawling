@@ -14,12 +14,22 @@ USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTM
 
 # 다양한 유저 에이전트 목록
 USER_AGENTS = [
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.114 Safari/537.36",
+    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/92.0.4515.107 Safari/537.36",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:90.0) Gecko/20100101 Firefox/90.0",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:90.0) Gecko/20100101 Firefox/90.0",
+    "Mozilla/5.0 (X11; Linux i686; rv:89.0) Gecko/20100101 Firefox/89.0",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/92.0.4515.131 Safari/537.36 Edg/92.0.902.67",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.1.2 Safari/605.1.15",
+    "Mozilla/5.0 (iPhone; CPU iPhone OS 14_7_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.1.2 Mobile/15E148 Safari/604.1",
+    "Mozilla/5.0 (iPad; CPU OS 14_7_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.1.2 Mobile/15E148 Safari/604.1",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/94.0.4606.61 Safari/537.36",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 11_5_2) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/93.0.4577.63 Safari/537.36",
+    "Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:92.0) Gecko/20100101 Firefox/92.0",
+    "Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/92.0.4515.159 Safari/537.36",
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36",
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Safari/605.1.15",
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/115.0",
-    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 ]
 
 WINDOW_SIZE = "1920,1080"
@@ -42,7 +52,7 @@ def get_detail_page_load_wait():
 
 def get_car_processing_wait():
     """Random wait time between processing cars"""
-    return random.uniform(4, 7)
+    return random.uniform(1, 3)
 
 def get_pagination_wait():
     """Random wait time after pagination"""
@@ -50,11 +60,11 @@ def get_pagination_wait():
 
 def get_retry_wait():
     """Random wait time before retrying the entire process"""
-    return random.uniform(15, 30)
+    return random.uniform(10, 20)
 
 def get_browser_close_wait():
     """Random wait time before closing the browser"""
-    return random.uniform(3, 7)
+    return random.uniform(2, 4)
 
 def get_scroll_wait():
     """Wait time after scrolling"""
@@ -185,5 +195,33 @@ LOG_FORMAT = "%(asctime)s - %(levelname)s - %(message)s"
 LOG_DATE_FORMAT = "%Y-%m-%d %H:%M:%S"
 
 # 로봇 감지 관련 설정
-LAST_ROBOT_DETECTION = 0  # 마지막 로봇 감지 시간 (Unix timestamp)
-ROBOT_DETECTION_COOLDOWN = 300  # 로봇 감지 후 대기 시간 (초) 
+ROBOT_DETECTION_COOLDOWN = 300  # 로봇 감지 후 대기 시간 (초)
+LAST_ROBOT_DETECTION = 0  # 마지막 로봇 감지 시간
+ROBOT_DETECTION_COUNT = 0  # 로봇 감지 카운트
+
+def get_random_user_agent():
+    """
+    사용자 에이전트 목록에서 무작위로 하나를 선택하여 반환
+    """
+    return random.choice(USER_AGENTS)
+
+def get_car_processing_wait():
+    """
+    차량 정보 처리 사이의 대기 시간을 얻는 함수입니다.
+    기본적으로 1~3초 사이의 랜덤한 시간을 반환합니다.
+    """
+    return random.uniform(1, 3)
+
+def get_browser_close_wait():
+    """
+    브라우저 종료 전 대기 시간을 얻는 함수입니다.
+    기본적으로 2~4초 사이의 랜덤한 시간을 반환합니다.
+    """
+    return random.uniform(2, 4)
+
+def get_retry_wait():
+    """
+    재시도 전 대기 시간을 얻는 함수입니다.
+    기본적으로 10~20초 사이의 랜덤한 시간을 반환합니다.
+    """
+    return random.uniform(10, 20) 

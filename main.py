@@ -7,8 +7,9 @@ import logging
 import sys
 import platform
 import subprocess
+import random
 from selenium.webdriver.common.by import By
-from selenium.common.exceptions import TimeoutException, WebDriverException
+from selenium.common.exceptions import TimeoutException, WebDriverException, UnexpectedAlertPresentException, NoAlertPresentException
 import config
 import driver_setup
 import car_detail_extractor
@@ -65,13 +66,62 @@ def crawl_page(driver, page_number, all_car_data, opensearch_client=None):
         return [], True
     
     # 페이지로 이동
-    if not pagination_handler.navigate_to_page(driver, page_number):
-        return [], False
+    try:
+        if not pagination_handler.navigate_to_page(driver, page_number):
+            return [], False
+    except UnexpectedAlertPresentException as e:
+        # 알림창 처리
+        try:
+            alert = driver.switch_to.alert
+            alert_text = alert.text
+            logging.warning(f"알림창 감지: {alert_text}")
+            alert.accept()
+            
+            # 로봇 감지로 간주
+            config.LAST_ROBOT_DETECTION = time.time()
+            logging.error("로봇 감지 알림이 표시되었습니다. 잠시 후 다시 시도합니다.")
+            
+            # 쿨다운 시간 설정 (점진적으로 증가)
+            if not hasattr(config, 'ROBOT_DETECTION_COUNT'):
+                config.ROBOT_DETECTION_COUNT = 0
+            config.ROBOT_DETECTION_COUNT += 1
+            
+            # 지수 백오프 적용 (최대 30분)
+            backoff_time = min(300 * (2 ** config.ROBOT_DETECTION_COUNT), 1800)
+            config.ROBOT_DETECTION_COOLDOWN = backoff_time
+            
+            logging.info(f"로봇 감지 후 {backoff_time}초 동안 대기합니다...")
+            
+            # 드라이버 재설정 필요
+            return [], True
+        except NoAlertPresentException:
+            logging.error("알림창을 감지했으나 처리할 수 없습니다.")
+            return [], True
     
     # 차량 목록 가져오기
     try:
+        # 인간 행동 시뮬레이션 - 페이지 로딩 후 약간의 지연
+        random_delay = random.uniform(2, 5)
+        time.sleep(random_delay)
+        
         car_items = driver.find_elements(By.CSS_SELECTOR, config.SELECTORS["car_items"])
         logging.info(f"총 {len(car_items)}개의 차량을 발견했습니다.")
+    except UnexpectedAlertPresentException as e:
+        # 알림창 처리
+        try:
+            alert = driver.switch_to.alert
+            alert_text = alert.text
+            logging.warning(f"알림창 감지: {alert_text}")
+            alert.accept()
+            
+            # 로봇 감지로 간주
+            config.LAST_ROBOT_DETECTION = time.time()
+            
+            # 드라이버 재설정 필요
+            return [], True
+        except NoAlertPresentException:
+            logging.error("알림창을 감지했으나 처리할 수 없습니다.")
+            return [], True
     except Exception as e:
         logging.error(f"차량 목록을 가져오는 중 오류 발생: {e}")
         return [], True  # 드라이버 재설정 필요
@@ -109,9 +159,32 @@ def crawl_page(driver, page_number, all_car_data, opensearch_client=None):
             # 페이지 번호 추가
             car_info["페이지번호"] = page_number
             
+            # 인간 행동 시뮬레이션 - 가변적인 대기 시간
+            random_delay = random.uniform(0.5, 2.5)
+            time.sleep(random_delay)
+            
             # 상세 페이지 정보 가져오기
             logging.info(f"차량 ID {car_info['차량ID']}의 상세 정보를 가져오는 중...")
-            detail_info = car_detail_extractor.get_car_detail_info(driver, car_info["상세페이지URL"])
+            try:
+                detail_info = car_detail_extractor.get_car_detail_info(driver, car_info["상세페이지URL"])
+            except UnexpectedAlertPresentException as e:
+                # 알림창 처리
+                try:
+                    alert = driver.switch_to.alert
+                    alert_text = alert.text
+                    logging.warning(f"알림창 감지: {alert_text}")
+                    alert.accept()
+                    
+                    # 로봇 감지로 간주
+                    config.LAST_ROBOT_DETECTION = time.time()
+                    
+                    # 드라이버 재설정 필요
+                    reset_needed = True
+                    break
+                except NoAlertPresentException:
+                    logging.error("알림창을 감지했으나 처리할 수 없습니다.")
+                    reset_needed = True
+                    break
             
             # 세션 오류 확인
             if "세션오류" in detail_info:
@@ -134,9 +207,28 @@ def crawl_page(driver, page_number, all_car_data, opensearch_client=None):
             # 중간 저장
             # data_processor.save_checkpoint(page_car_data, idx, page_number)
             
-            # 인간처럼 행동하기 위한 짧은 대기
-            time.sleep(config.get_car_processing_wait())
+            # 인간처럼 행동하기 위한 가변적인 대기 시간
+            wait_time = config.get_car_processing_wait() * random.uniform(0.8, 1.2)
+            time.sleep(wait_time)
             
+        except UnexpectedAlertPresentException as e:
+            # 알림창 처리
+            try:
+                alert = driver.switch_to.alert
+                alert_text = alert.text
+                logging.warning(f"알림창 감지: {alert_text}")
+                alert.accept()
+                
+                # 로봇 감지로 간주
+                config.LAST_ROBOT_DETECTION = time.time()
+                
+                # 드라이버 재설정 필요
+                reset_needed = True
+                break
+            except NoAlertPresentException:
+                logging.error("알림창을 감지했으나 처리할 수 없습니다.")
+                reset_needed = True
+                break
         except Exception as e:
             logging.error(f"차량 정보 추출 중 오류 발생: {e}")
             # 세션 오류인지 확인
@@ -182,6 +274,33 @@ def crawl_encar(start_page=61, max_pages=None, save_all=True, use_opensearch=Tru
             driver.set_script_timeout(300)
             logging.info("페이지 로드 및 스크립트 타임아웃을 300초로 설정했습니다.")
         
+        # 사용자 에이전트 랜덤화 시도 (알림이 뜨는 것을 방지하기 위함)
+        try:
+            driver.execute_cdp_cmd('Network.setUserAgentOverride', {
+                "userAgent": config.get_random_user_agent()
+            })
+            logging.info("사용자 에이전트를 랜덤화하였습니다.")
+        except Exception as e:
+            logging.error(f"사용자 에이전트 설정 실패: {e}")
+            
+        # 쿠키 수락 및 홈페이지 접속
+        try:
+            driver.get("http://www.encar.com")
+            time.sleep(random.uniform(1, 3))
+            
+            # 쿠키 동의 버튼이 있으면 클릭
+            try:
+                cookie_accept = driver.find_element(By.CSS_SELECTOR, ".btn_accept")
+                if cookie_accept:
+                    cookie_accept.click()
+                    logging.info("쿠키 동의 버튼을 클릭했습니다.")
+                    time.sleep(random.uniform(1, 2))
+            except:
+                pass
+                
+        except Exception as e:
+            logging.error(f"홈페이지 접속 중 오류 발생: {e}")
+        
         # OpenSearch 클라이언트 설정 (사용하는 경우)
         if use_opensearch:
             try:
@@ -208,9 +327,60 @@ def crawl_encar(start_page=61, max_pages=None, save_all=True, use_opensearch=Tru
         continue_crawling = True
         pages_crawled = 0
         
+        # 로봇 감지 카운터 초기화
+        if not hasattr(config, 'ROBOT_DETECTION_COUNT'):
+            config.ROBOT_DETECTION_COUNT = 0
+            
+        # 로봇 감지 쿨다운 초기화
+        if not hasattr(config, 'ROBOT_DETECTION_COOLDOWN'):
+            config.ROBOT_DETECTION_COOLDOWN = 300  # 기본 5분
+            
+        # 마지막 로봇 감지 시간 초기화
+        if not hasattr(config, 'LAST_ROBOT_DETECTION'):
+            config.LAST_ROBOT_DETECTION = 0
+        
         while continue_crawling and (pages_crawled < max_pages):
             # 현재 페이지 크롤링
             try:
+                # 알림 확인 및 처리
+                try:
+                    alert = driver.switch_to.alert
+                    alert_text = alert.text
+                    logging.warning(f"페이지 크롤링 전 알림창 감지: {alert_text}")
+                    alert.accept()
+                    
+                    # 로봇 감지로 간주
+                    config.LAST_ROBOT_DETECTION = time.time()
+                    config.ROBOT_DETECTION_COUNT += 1
+                    
+                    # 지수 백오프 적용 (최대 30분)
+                    backoff_time = min(300 * (2 ** config.ROBOT_DETECTION_COUNT), 1800)
+                    config.ROBOT_DETECTION_COOLDOWN = backoff_time
+                    
+                    logging.info(f"로봇 감지 후 {backoff_time}초 동안 대기합니다...")
+                    time.sleep(backoff_time)
+                    
+                    # 드라이버 재설정
+                    if driver:
+                        driver_setup.cleanup_driver(driver)
+                    driver = driver_setup.setup_driver()
+                    if hasattr(driver, 'command_executor'):
+                        driver.command_executor._conn.timeout = 600.0
+                        driver.set_page_load_timeout(300)
+                        driver.set_script_timeout(300)
+                        
+                    # 사용자 에이전트 랜덤화
+                    try:
+                        driver.execute_cdp_cmd('Network.setUserAgentOverride', {
+                            "userAgent": config.get_random_user_agent()
+                        })
+                    except:
+                        pass
+                        
+                    continue
+                except NoAlertPresentException:
+                    pass  # 알림이 없으면 계속 진행
+                
                 page_car_data, reset_needed = crawl_page(driver, current_page, all_car_data, opensearch_client)
                 
                 # 드라이버 재설정이 필요한 경우
@@ -230,6 +400,19 @@ def crawl_encar(start_page=61, max_pages=None, save_all=True, use_opensearch=Tru
                         driver.set_page_load_timeout(300)
                         driver.set_script_timeout(300)
                     
+                    # 사용자 에이전트 랜덤화
+                    try:
+                        driver.execute_cdp_cmd('Network.setUserAgentOverride', {
+                            "userAgent": config.get_random_user_agent()
+                        })
+                    except:
+                        pass
+                    
+                    # 대기 시간 추가 (로봇 감지 완화)
+                    wait_time = random.uniform(30, 60)
+                    logging.info(f"드라이버 재설정 후 {wait_time:.0f}초 동안 대기합니다...")
+                    time.sleep(wait_time)
+                    
                     # 현재 페이지 다시 시도
                     logging.info(f"페이지 {current_page}를 다시 시도합니다.")
                     continue
@@ -247,6 +430,11 @@ def crawl_encar(start_page=61, max_pages=None, save_all=True, use_opensearch=Tru
                     logging.info(f"최대 페이지 수({max_pages})에 도달했습니다. 크롤링을 종료합니다.")
                     break
                 
+                # 인간 행동 시뮬레이션 - 가변적인 대기 시간
+                random_delay = random.uniform(2, 5)
+                logging.info(f"다음 페이지로 이동 전 {random_delay:.1f}초 대기...")
+                time.sleep(random_delay)
+                
                 # 다음 페이지로 이동
                 try:
                     next_page = pagination_handler.go_to_next_page(driver, current_page)
@@ -256,6 +444,55 @@ def crawl_encar(start_page=61, max_pages=None, save_all=True, use_opensearch=Tru
                         continue_crawling = False
                     else:
                         current_page = next_page
+                except UnexpectedAlertPresentException as e:
+                    # 알림창 처리
+                    try:
+                        alert = driver.switch_to.alert
+                        alert_text = alert.text
+                        logging.warning(f"다음 페이지 이동 중 알림창 감지: {alert_text}")
+                        alert.accept()
+                        
+                        # 로봇 감지로 간주
+                        config.LAST_ROBOT_DETECTION = time.time()
+                        config.ROBOT_DETECTION_COUNT += 1
+                        
+                        # 지수 백오프 적용 (최대 30분)
+                        backoff_time = min(300 * (2 ** config.ROBOT_DETECTION_COUNT), 1800)
+                        config.ROBOT_DETECTION_COOLDOWN = backoff_time
+                        
+                        logging.info(f"로봇 감지 후 {backoff_time}초 동안 대기합니다...")
+                        time.sleep(backoff_time)
+                        
+                        # 드라이버 재설정
+                        if driver:
+                            driver_setup.cleanup_driver(driver)
+                        driver = driver_setup.setup_driver()
+                        if hasattr(driver, 'command_executor'):
+                            driver.command_executor._conn.timeout = 600.0
+                            driver.set_page_load_timeout(300)
+                            driver.set_script_timeout(300)
+                            
+                        # 사용자 에이전트 랜덤화
+                        try:
+                            driver.execute_cdp_cmd('Network.setUserAgentOverride', {
+                                "userAgent": config.get_random_user_agent()
+                            })
+                        except:
+                            pass
+                            
+                        # 현재 페이지 유지하고 다시 시도
+                        continue
+                    except NoAlertPresentException:
+                        logging.error("알림창을 감지했으나 처리할 수 없습니다.")
+                        # 드라이버 재설정
+                        if driver:
+                            driver_setup.cleanup_driver(driver)
+                        driver = driver_setup.setup_driver()
+                        if hasattr(driver, 'command_executor'):
+                            driver.command_executor._conn.timeout = 600.0
+                            driver.set_page_load_timeout(300)
+                            driver.set_script_timeout(300)
+                        continue
                 except TimeoutException as e:
                     logging.error(f"다음 페이지로 이동 중 타임아웃 발생: {e}")
                     # 드라이버 재설정
@@ -272,6 +509,50 @@ def crawl_encar(start_page=61, max_pages=None, save_all=True, use_opensearch=Tru
                     current_page += 1
                     continue
                 
+            except UnexpectedAlertPresentException as e:
+                # 알림창 처리
+                try:
+                    alert = driver.switch_to.alert
+                    alert_text = alert.text
+                    logging.warning(f"크롤링 중 알림창 감지: {alert_text}")
+                    alert.accept()
+                    
+                    # 로봇 감지로 간주
+                    config.LAST_ROBOT_DETECTION = time.time()
+                    config.ROBOT_DETECTION_COUNT += 1
+                    
+                    # 지수 백오프 적용 (최대 30분)
+                    backoff_time = min(300 * (2 ** config.ROBOT_DETECTION_COUNT), 1800)
+                    config.ROBOT_DETECTION_COOLDOWN = backoff_time
+                    
+                    logging.info(f"로봇 감지 후 {backoff_time}초 동안 대기합니다...")
+                    time.sleep(backoff_time)
+                    
+                    # 드라이버 재설정
+                    if driver:
+                        driver_setup.cleanup_driver(driver)
+                    driver = driver_setup.setup_driver()
+                    if hasattr(driver, 'command_executor'):
+                        driver.command_executor._conn.timeout = 600.0
+                        driver.set_page_load_timeout(300)
+                        driver.set_script_timeout(300)
+                        
+                    # 사용자 에이전트 랜덤화
+                    try:
+                        driver.execute_cdp_cmd('Network.setUserAgentOverride', {
+                            "userAgent": config.get_random_user_agent()
+                        })
+                    except:
+                        pass
+                        
+                    continue
+                except NoAlertPresentException:
+                    logging.error("알림창을 감지했으나 처리할 수 없습니다.")
+                    # 드라이버 재설정
+                    if driver:
+                        driver_setup.cleanup_driver(driver)
+                    driver = driver_setup.setup_driver()
+                    continue
             except TimeoutException as e:
                 logging.error(f"페이지 {current_page} 처리 중 타임아웃 발생: {e}")
                 # 드라이버 재설정
