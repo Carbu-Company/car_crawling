@@ -105,11 +105,6 @@ def navigate_to_url(driver, url):
         WebDriverWait(driver, 10).until(lambda d: d.execute_script("return document.readyState") == "complete")
         logging.info("페이지 로딩 완료")
         
-        # 로봇 감지 확인 및 처리
-        if not handle_robot_check(driver):
-            logging.warning("로봇 감지 처리에 실패했습니다.")
-            return False
-            
         return True
 
     except Exception as e:
@@ -255,94 +250,12 @@ def take_screenshot(driver, filename=None):
 
 def handle_robot_check(driver):
     """
-    브라우저가 로봇인지 확인하는 페이지를 감지하고 자동으로 처리를 시도합니다.
-    실패하더라도 계속 진행할 수 있도록 항상 True를 반환합니다.
+    A simplified function that always returns True.
     
     Args:
         driver: Selenium WebDriver instance
         
     Returns:
-        bool: Always True to continue the process
+        bool: Always True
     """
-    try:
-        # 현재 페이지가 로봇 검사 페이지인지 확인
-        # URL이나 특정 텍스트를 기반으로 확인
-        if "recaptcha" in driver.page_source.lower() or "robot" in driver.page_source.lower() or "보안문자" in driver.page_source.lower():
-            logging.warning("로봇 감지 페이지가 발견되었습니다. 자동 처리를 시도합니다.")
-            
-            # 현재 URL 저장
-            current_url = driver.current_url
-            logging.info(f"현재 URL 저장: {current_url}")
-            
-            # 유저 에이전트 무작위화
-            try:
-                new_user_agent = random.choice(config.USER_AGENTS)
-                driver.execute_cdp_cmd('Network.setUserAgentOverride', {"userAgent": new_user_agent})
-                logging.info(f"새로운 User-Agent 설정: {new_user_agent}")
-            except:
-                logging.warning("User-Agent 변경에 실패했습니다.")
-            
-            # IP 우회를 위한 브라우저 재실행 시도
-            logging.info("새로운 세션으로 재시도합니다...")
-            
-            # 스크린샷 저장 (디버깅 목적)
-            try:
-                take_screenshot(driver, "robot_detection.png")
-            except:
-                pass
-            
-            # 랜덤 대기 시간 추가 (더 긴 시간으로 설정)
-            wait_time = random.uniform(8, 15)
-            logging.info(f"{wait_time:.2f}초 동안 대기합니다...")
-            time.sleep(wait_time)
-            
-            # 메인 페이지로 이동하여 쿠키 초기화
-            try:
-                driver.get("https://www.encar.com")
-                time.sleep(3)
-                logging.info("메인 페이지로 이동했습니다.")
-                
-                # 메인 페이지에서 일부 링크를 클릭하는 등의 사용자 활동 시뮬레이션
-                try:
-                    links = driver.find_elements(By.TAG_NAME, "a")
-                    if links:
-                        random_link = random.choice(links[:5])  # 상단의 링크 중 하나를 선택
-                        if random_link.is_displayed() and random_link.is_enabled():
-                            logging.info("사용자 행동 시뮬레이션: 랜덤 링크 클릭")
-                            random_link.click()
-                            time.sleep(3)
-                            driver.back()
-                            time.sleep(2)
-                except:
-                    pass
-            except Exception as e:
-                logging.error(f"메인 페이지로 이동 실패: {e}")
-            
-            # 세션 초기화를 위해 브라우저 쿠키 삭제
-            try:
-                driver.delete_all_cookies()
-                logging.info("모든 쿠키를 삭제했습니다.")
-                time.sleep(2)
-            except Exception as e:
-                logging.error(f"쿠키 삭제 중 오류 발생: {e}")
-            
-            # 다시 원래 페이지로 이동
-            try:
-                logging.info(f"원래 페이지로 다시 이동합니다: {current_url}")
-                driver.get(current_url)
-                time.sleep(5)  # 페이지 로딩 대기
-                
-                # 로봇 감지가 여전히 있는지 확인
-                if "recaptcha" in driver.page_source.lower() or "robot" in driver.page_source.lower() or "보안문자" in driver.page_source.lower():
-                    logging.warning("로봇 감지가 계속됩니다. 하지만 계속 진행합니다.")
-                    return True  # 여전히 로봇 감지가 있어도 계속 진행
-            except Exception as e:
-                logging.error(f"원래 페이지로 돌아가는 중 오류 발생: {e}")
-                return True  # 오류가 발생해도 계속 진행
-                
-        # 로봇 확인 페이지가 아니면 그냥 진행
-        return True
-        
-    except Exception as e:
-        logging.error(f"로봇 감지 처리 중 오류 발생: {e}")
-        return True  # 오류가 발생해도 계속 진행 (항상 True 반환)
+    return True
