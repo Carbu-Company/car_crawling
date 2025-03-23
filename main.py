@@ -51,15 +51,6 @@ def crawl_page(driver, page_number, all_car_data, opensearch_client=None):
     """
     logging.info(f"\n===== {page_number}페이지 크롤링 시작 =====\n")
     
-    # 로봇 감지 후 충분한 시간이 지났는지 확인
-    current_time = time.time()
-    if hasattr(config, 'LAST_ROBOT_DETECTION') and config.LAST_ROBOT_DETECTION > 0:
-        time_since_detection = current_time - config.LAST_ROBOT_DETECTION
-        if time_since_detection < config.ROBOT_DETECTION_COOLDOWN:
-            wait_time = min(config.ROBOT_DETECTION_COOLDOWN - time_since_detection, 10)  # 최대 60초 대기
-            logging.info(f"로봇 감지 후 {wait_time:.0f}초 동안 대기합니다...")
-            time.sleep(wait_time)
-    
     # 세션 유효성 확인
     if not car_detail_extractor.is_session_valid(driver):
         logging.error("WebDriver 세션이 유효하지 않습니다. 드라이버를 재설정해야 합니다.")
@@ -70,30 +61,13 @@ def crawl_page(driver, page_number, all_car_data, opensearch_client=None):
         if not pagination_handler.navigate_to_page(driver, page_number):
             return [], False
     except UnexpectedAlertPresentException as e:
-        # 알림창 처리
+        # 간단하게 알림창만 처리
         try:
             alert = driver.switch_to.alert
             alert_text = alert.text
             logging.warning(f"알림창 감지: {alert_text}")
             alert.accept()
-            
-            # 로봇 감지로 간주``
-            config.LAST_ROBOT_DETECTION = time.time()
-            logging.error("로봇 감지 알림이 표시되었습니다. 잠시 후 다시 시도합니다.")
-            
-            # 쿨다운 시간 설정 (점진적으로 증가)
-            if not hasattr(config, 'ROBOT_DETECTION_COUNT'):
-                config.ROBOT_DETECTION_COUNT = 0
-            config.ROBOT_DETECTION_COUNT += 1
-            
-            # 지수 백오프 적용 (최대 30분)
-            backoff_time = min(300 * (2 ** config.ROBOT_DETECTION_COUNT), 1800)
-            config.ROBOT_DETECTION_COOLDOWN = backoff_time
-            
-            logging.info(f"로봇 감지 후 {backoff_time}초 동안 대기합니다...")
-            
-            # 드라이버 재설정 필요
-            return [], True
+            return [], True  # 드라이버 재설정 필요
         except NoAlertPresentException:
             logging.error("알림창을 감지했으나 처리할 수 없습니다.")
             return [], True
@@ -107,18 +81,13 @@ def crawl_page(driver, page_number, all_car_data, opensearch_client=None):
         car_items = driver.find_elements(By.CSS_SELECTOR, config.SELECTORS["car_items"])
         logging.info(f"총 {len(car_items)}개의 차량을 발견했습니다.")
     except UnexpectedAlertPresentException as e:
-        # 알림창 처리
+        # 간단하게 알림창만 처리
         try:
             alert = driver.switch_to.alert
             alert_text = alert.text
             logging.warning(f"알림창 감지: {alert_text}")
             alert.accept()
-            
-            # 로봇 감지로 간주
-            config.LAST_ROBOT_DETECTION = time.time()
-            
-            # 드라이버 재설정 필요
-            return [], True
+            return [], True  # 드라이버 재설정 필요
         except NoAlertPresentException:
             logging.error("알림창을 감지했으나 처리할 수 없습니다.")
             return [], True
@@ -168,17 +137,12 @@ def crawl_page(driver, page_number, all_car_data, opensearch_client=None):
             try:
                 detail_info = car_detail_extractor.get_car_detail_info(driver, car_info["상세페이지URL"])
             except UnexpectedAlertPresentException as e:
-                # 알림창 처리
+                # 간단하게 알림창만 처리
                 try:
                     alert = driver.switch_to.alert
                     alert_text = alert.text
                     logging.warning(f"알림창 감지: {alert_text}")
                     alert.accept()
-                    
-                    # 로봇 감지로 간주
-                    config.LAST_ROBOT_DETECTION = time.time()
-                    
-                    # 드라이버 재설정 필요
                     reset_needed = True
                     break
                 except NoAlertPresentException:
@@ -204,25 +168,17 @@ def crawl_page(driver, page_number, all_car_data, opensearch_client=None):
                 if opensearch_handler.index_car_to_opensearch(opensearch_client, car_info, idx+1):
                     indexed_count += 1
             
-            # 중간 저장
-            # data_processor.save_checkpoint(page_car_data, idx, page_number)
-            
             # 인간처럼 행동하기 위한 가변적인 대기 시간
             wait_time = config.get_car_processing_wait() * random.uniform(0.8, 1.2)
             time.sleep(wait_time)
             
         except UnexpectedAlertPresentException as e:
-            # 알림창 처리
+            # 간단하게 알림창만 처리
             try:
                 alert = driver.switch_to.alert
                 alert_text = alert.text
                 logging.warning(f"알림창 감지: {alert_text}")
                 alert.accept()
-                
-                # 로봇 감지로 간주
-                config.LAST_ROBOT_DETECTION = time.time()
-                
-                # 드라이버 재설정 필요
                 reset_needed = True
                 break
             except NoAlertPresentException:
@@ -237,10 +193,6 @@ def crawl_page(driver, page_number, all_car_data, opensearch_client=None):
                 reset_needed = True
                 break
             continue
-    
-    # 현재 페이지 데이터 저장
-    # if page_car_data:
-    #     data_processor.save_page_data(page_car_data, page_number)
     
     if opensearch_client and page_car_data:
         logging.info(f"페이지 {page_number}에서 총 {indexed_count}/{len(page_car_data)}개의 차량 데이터 인덱싱 완료")
@@ -327,18 +279,6 @@ def crawl_encar(start_page=65, max_pages=None, save_all=True, use_opensearch=Tru
         continue_crawling = True
         pages_crawled = 0
         
-        # 로봇 감지 카운터 초기화
-        if not hasattr(config, 'ROBOT_DETECTION_COUNT'):
-            config.ROBOT_DETECTION_COUNT = 0
-            
-        # 로봇 감지 쿨다운 초기화
-        if not hasattr(config, 'ROBOT_DETECTION_COOLDOWN'):
-            config.ROBOT_DETECTION_COOLDOWN = 300  # 기본 5분
-            
-        # 마지막 로봇 감지 시간 초기화
-        if not hasattr(config, 'LAST_ROBOT_DETECTION'):
-            config.LAST_ROBOT_DETECTION = 0
-        
         while continue_crawling and (pages_crawled < max_pages):
             # 현재 페이지 크롤링
             try:
@@ -348,17 +288,6 @@ def crawl_encar(start_page=65, max_pages=None, save_all=True, use_opensearch=Tru
                     alert_text = alert.text
                     logging.warning(f"페이지 크롤링 전 알림창 감지: {alert_text}")
                     alert.accept()
-                    
-                    # 로봇 감지로 간주
-                    config.LAST_ROBOT_DETECTION = time.time()
-                    config.ROBOT_DETECTION_COUNT += 1
-                    
-                    # 지수 백오프 적용 (최대 30분)
-                    backoff_time = min(300 * (2 ** config.ROBOT_DETECTION_COUNT), 1800)
-                    config.ROBOT_DETECTION_COOLDOWN = backoff_time
-                    
-                    logging.info(f"로봇 감지 후 {backoff_time}초 동안 대기합니다...")
-                    time.sleep(backoff_time)
                     
                     # 드라이버 재설정
                     if driver:
@@ -408,8 +337,8 @@ def crawl_encar(start_page=65, max_pages=None, save_all=True, use_opensearch=Tru
                     except:
                         pass
                     
-                    # 대기 시간 추가 (로봇 감지 완화)
-                    wait_time = random.uniform(30, 60)
+                    # 대기 시간 추가
+                    wait_time = random.uniform(10, 20)
                     logging.info(f"드라이버 재설정 후 {wait_time:.0f}초 동안 대기합니다...")
                     time.sleep(wait_time)
                     
@@ -445,23 +374,12 @@ def crawl_encar(start_page=65, max_pages=None, save_all=True, use_opensearch=Tru
                     else:
                         current_page = next_page
                 except UnexpectedAlertPresentException as e:
-                    # 알림창 처리
+                    # 간단하게 알림창만 처리
                     try:
                         alert = driver.switch_to.alert
                         alert_text = alert.text
                         logging.warning(f"다음 페이지 이동 중 알림창 감지: {alert_text}")
                         alert.accept()
-                        
-                        # 로봇 감지로 간주
-                        config.LAST_ROBOT_DETECTION = time.time()
-                        config.ROBOT_DETECTION_COUNT += 1
-                        
-                        # 지수 백오프 적용 (최대 30분)
-                        backoff_time = min(300 * (2 ** config.ROBOT_DETECTION_COUNT), 1800)
-                        config.ROBOT_DETECTION_COOLDOWN = backoff_time
-                        
-                        logging.info(f"로봇 감지 후 {backoff_time}초 동안 대기합니다...")
-                        time.sleep(backoff_time)
                         
                         # 드라이버 재설정
                         if driver:
@@ -510,23 +428,12 @@ def crawl_encar(start_page=65, max_pages=None, save_all=True, use_opensearch=Tru
                     continue
                 
             except UnexpectedAlertPresentException as e:
-                # 알림창 처리
+                # 간단하게 알림창만 처리
                 try:
                     alert = driver.switch_to.alert
                     alert_text = alert.text
                     logging.warning(f"크롤링 중 알림창 감지: {alert_text}")
                     alert.accept()
-                    
-                    # 로봇 감지로 간주
-                    config.LAST_ROBOT_DETECTION = time.time()
-                    config.ROBOT_DETECTION_COUNT += 1
-                    
-                    # 지수 백오프 적용 (최대 30분)
-                    backoff_time = min(300 * (2 ** config.ROBOT_DETECTION_COUNT), 1800)
-                    config.ROBOT_DETECTION_COOLDOWN = backoff_time
-                    
-                    logging.info(f"로봇 감지 후 {backoff_time}초 동안 대기합니다...")
-                    time.sleep(backoff_time)
                     
                     # 드라이버 재설정
                     if driver:

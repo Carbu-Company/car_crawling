@@ -335,8 +335,6 @@ def handle_robot_check(driver):
                 # 로봇 감지가 여전히 있는지 확인
                 if "recaptcha" in driver.page_source.lower() or "robot" in driver.page_source.lower() or "보안문자" in driver.page_source.lower():
                     logging.warning("로봇 감지가 계속됩니다. 하지만 계속 진행합니다.")
-                    # 마지막 로봇 감지 시간 기록
-                    config.LAST_ROBOT_DETECTION = time.time()
                     return True  # 여전히 로봇 감지가 있어도 계속 진행
             except Exception as e:
                 logging.error(f"원래 페이지로 돌아가는 중 오류 발생: {e}")
