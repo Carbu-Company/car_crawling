@@ -77,7 +77,7 @@ def crawl_page(driver, page_number, all_car_data, opensearch_client=None):
             logging.warning(f"알림창 감지: {alert_text}")
             alert.accept()
             
-            # 로봇 감지로 간주
+            # 로봇 감지로 간주``
             config.LAST_ROBOT_DETECTION = time.time()
             logging.error("로봇 감지 알림이 표시되었습니다. 잠시 후 다시 시도합니다.")
             
@@ -365,9 +365,9 @@ def crawl_encar(start_page=65, max_pages=None, save_all=True, use_opensearch=Tru
                         driver_setup.cleanup_driver(driver)
                     driver = driver_setup.setup_driver()
                     if hasattr(driver, 'command_executor'):
-                        driver.command_executor._conn.timeout = 600.0
-                        driver.set_page_load_timeout(300)
-                        driver.set_script_timeout(300)
+                        driver.command_executor._conn.timeout = 30.0
+                        driver.set_page_load_timeout(30)
+                        driver.set_script_timeout(30)
                         
                     # 사용자 에이전트 랜덤화
                     try:
@@ -396,9 +396,9 @@ def crawl_encar(start_page=65, max_pages=None, save_all=True, use_opensearch=Tru
                     
                     # WebDriver 타임아웃 재설정
                     if hasattr(driver, 'command_executor'):
-                        driver.command_executor._conn.timeout = 600.0
-                        driver.set_page_load_timeout(300)
-                        driver.set_script_timeout(300)
+                        driver.command_executor._conn.timeout = 30.0
+                        driver.set_page_load_timeout(30)
+                        driver.set_script_timeout(30)
                     
                     # 사용자 에이전트 랜덤화
                     try:
@@ -468,9 +468,9 @@ def crawl_encar(start_page=65, max_pages=None, save_all=True, use_opensearch=Tru
                             driver_setup.cleanup_driver(driver)
                         driver = driver_setup.setup_driver()
                         if hasattr(driver, 'command_executor'):
-                            driver.command_executor._conn.timeout = 600.0
-                            driver.set_page_load_timeout(300)
-                            driver.set_script_timeout(300)
+                            driver.command_executor._conn.timeout = 30.0
+                            driver.set_page_load_timeout(30)
+                            driver.set_script_timeout(30)
                             
                         # 사용자 에이전트 랜덤화
                         try:
@@ -489,9 +489,9 @@ def crawl_encar(start_page=65, max_pages=None, save_all=True, use_opensearch=Tru
                             driver_setup.cleanup_driver(driver)
                         driver = driver_setup.setup_driver()
                         if hasattr(driver, 'command_executor'):
-                            driver.command_executor._conn.timeout = 600.0
-                            driver.set_page_load_timeout(300)
-                            driver.set_script_timeout(300)
+                            driver.command_executor._conn.timeout = 30.0
+                            driver.set_page_load_timeout(30)
+                            driver.set_script_timeout(30)
                         continue
                 except TimeoutException as e:
                     logging.error(f"다음 페이지로 이동 중 타임아웃 발생: {e}")
@@ -502,9 +502,9 @@ def crawl_encar(start_page=65, max_pages=None, save_all=True, use_opensearch=Tru
                     driver = driver_setup.setup_driver()
                     # WebDriver 타임아웃 재설정
                     if hasattr(driver, 'command_executor'):
-                        driver.command_executor._conn.timeout = 600.0
-                        driver.set_page_load_timeout(300)
-                        driver.set_script_timeout(300)
+                        driver.command_executor._conn.timeout = 30.0
+                        driver.set_page_load_timeout(30)
+                        driver.set_script_timeout(30)
                     # 다음 페이지로 이동
                     current_page += 1
                     continue
@@ -533,9 +533,9 @@ def crawl_encar(start_page=65, max_pages=None, save_all=True, use_opensearch=Tru
                         driver_setup.cleanup_driver(driver)
                     driver = driver_setup.setup_driver()
                     if hasattr(driver, 'command_executor'):
-                        driver.command_executor._conn.timeout = 600.0
-                        driver.set_page_load_timeout(300)
-                        driver.set_script_timeout(300)
+                        driver.command_executor._conn.timeout = 30.0
+                        driver.set_page_load_timeout(30)
+                        driver.set_script_timeout(30)
                         
                     # 사용자 에이전트 랜덤화
                     try:
@@ -561,9 +561,9 @@ def crawl_encar(start_page=65, max_pages=None, save_all=True, use_opensearch=Tru
                 driver = driver_setup.setup_driver()
                 # WebDriver 타임아웃 재설정
                 if hasattr(driver, 'command_executor'):
-                    driver.command_executor._conn.timeout = 600.0
-                    driver.set_page_load_timeout(300)
-                    driver.set_script_timeout(300)
+                    driver.command_executor._conn.timeout = 30.0
+                    driver.set_page_load_timeout(30)
+                    driver.set_script_timeout(30)
                 # 다음 페이지로 이동
                 current_page += 1
                 continue
@@ -576,9 +576,9 @@ def crawl_encar(start_page=65, max_pages=None, save_all=True, use_opensearch=Tru
                     driver = driver_setup.setup_driver()
                     # WebDriver 타임아웃 재설정
                     if hasattr(driver, 'command_executor'):
-                        driver.command_executor._conn.timeout = 600.0
-                        driver.set_page_load_timeout(300)
-                        driver.set_script_timeout(300)
+                        driver.command_executor._conn.timeout = 30.0
+                        driver.set_page_load_timeout(30)
+                        driver.set_script_timeout(30)
                     # 다음 페이지로 이동
                     current_page += 1
                     continue
