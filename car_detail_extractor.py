@@ -5,6 +5,7 @@ Module for extracting detailed car information from car detail pages.
 import time
 import logging
 import os
+import random
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
@@ -36,17 +37,6 @@ def is_session_valid(driver):
         return False
 
 def get_car_detail_info(driver, detail_url, max_retries=2):
-    """
-    Get detailed car information from the car detail page.
-    
-    Args:
-        driver: Selenium WebDriver instance
-        detail_url: URL of the car detail page
-        max_retries: Maximum number of retries
-        
-    Returns:
-        dict: Dictionary containing detailed car information
-    """
     detail_info = {}
     retry_count = 0
     original_window = driver.current_window_handle
@@ -56,13 +46,11 @@ def get_car_detail_info(driver, detail_url, max_retries=2):
             # 세션 유효성 확인
             if not is_session_valid(driver):
                 logging.warning("세션이 유효하지 않아 드라이버를 재설정합니다.")
-                # 기존 드라이버 정리
                 try:
                     driver_setup.cleanup_driver(driver)
                 except:
                     pass
                 
-                # 새 드라이버 설정
                 driver = driver_setup.setup_driver()
                 driver_setup.navigate_to_url(driver, config.BASE_URL)
                 time.sleep(config.get_page_load_wait())
@@ -77,30 +65,19 @@ def get_car_detail_info(driver, detail_url, max_retries=2):
             driver.execute_script(f"window.open('{detail_url}', '_blank');")
             
             # 새 탭으로 전환 (타임아웃 증가)
-            WebDriverWait(driver, 30).until(  # 10초에서 30초로 증가
+            WebDriverWait(driver, 5).until(  # 10초에서 30초로 증가
                 lambda d: len(d.window_handles) > window_count_before
             )
             driver.switch_to.window(driver.window_handles[-1])
             
             # 페이지 로드 대기 (대기 시간 증가)
-            detail_wait_time = max(config.get_detail_page_load_wait() * 2, 10)  # 최소 10초, 기본값의 2배
+            detail_wait_time = max(config.get_detail_page_load_wait(), 5)  # 최소 10초, 기본값의 2배
             time.sleep(detail_wait_time)
             
             # 세부정보 버튼 클릭
             try:
-                # 배너 닫기 버튼이 있는지 확인하고 닫기
-                try:
-                    banner_close_button = WebDriverWait(driver, 5).until(  # 3초에서 5초로 증가
-                        EC.element_to_be_clickable((By.CSS_SELECTOR, ".DetailBannerPcRandom_btn_close__pIopu"))
-                    )
-                    banner_close_button.click()
-                    time.sleep(0.5)  # 배너가 사라지길 기다림
-                    logging.info("배너를 닫았습니다.")
-                except:
-                    logging.debug("닫을 배너가 없습니다.")
-                
                 # 스크롤을 버튼 위치로 이동
-                detail_button = WebDriverWait(driver, 30).until(  # 10초에서 30초로 증가
+                detail_button = WebDriverWait(driver, 10).until(  # 10초에서 30초로 증가
                     EC.presence_of_element_located((By.CSS_SELECTOR, config.SELECTORS["detail_button"]))
                 )
                 
@@ -109,14 +86,9 @@ def get_car_detail_info(driver, detail_url, max_retries=2):
                 time.sleep(1)  # 스크롤 후 잠시 대기
                 
                 # 버튼 클릭
-                WebDriverWait(driver, 30).until(  # 10초에서 30초로 증가
+                WebDriverWait(driver, 10).until(  # 10초에서 30초로 증가
                     EC.element_to_be_clickable((By.CSS_SELECTOR, config.SELECTORS["detail_button"]))
                 ).click()
-                
-                # 팝업이 나타날 때까지 대기
-                WebDriverWait(driver, 30).until(  # 10초에서 30초로 증가
-                    EC.presence_of_element_located((By.CSS_SELECTOR, config.SELECTORS["detail_popup"]))
-                )
                 
                 # 세부 정보 추출
                 detail_items = driver.find_elements(By.CSS_SELECTOR, config.SELECTORS["detail_items"])
@@ -164,14 +136,6 @@ def get_car_detail_info(driver, detail_url, max_retries=2):
                 logging.error(f"세부정보 버튼 클릭 또는 팝업 처리 중 오류: {e}")
                 retry_count += 1
                 
-                # 오류 스크린샷 저장 코드 비활성화
-                # try:
-                #     screenshot_file = config.get_error_screenshot_filename()
-                #     driver.save_screenshot(screenshot_file)
-                #     logging.info(f"오류 스크린샷이 {screenshot_file}에 저장되었습니다.")
-                # except:
-                #     pass
-            
             finally:
                 # 탭 닫기
                 try:
@@ -318,4 +282,117 @@ def extract_car_info(car, all_car_data):
         
     except Exception as e:
         logging.error(f"차량 정보 추출 중 오류 발생: {e}")
-        return None 
+        return None
+
+def accept_cookies_and_setup(self):
+    """Accept cookies and set up initial page, wait for manual CAPTCHA verification first time"""
+    try:
+        self.driver.get("http://www.encar.com")
+        time.sleep(random.uniform(1, 3))
+        
+        # Check if CAPTCHA is present
+        try:
+            captcha_frame = self.driver.find_element(By.CSS_SELECTOR, "iframe[title^='reCAPTCHA']")
+            if captcha_frame:
+                logging.info("CAPTCHA detected on initial page load")
+                print("\n*** MANUAL ACTION REQUIRED ***")
+                print("Please complete the CAPTCHA verification in the browser window")
+                print("You have 60 seconds to complete this action")
+                
+                # Wait for manual verification (up to 60 seconds)
+                for i in range(60):
+                    time.sleep(1)
+                    # Check if CAPTCHA is still present
+                    try:
+                        self.driver.find_element(By.CSS_SELECTOR, "iframe[title^='reCAPTCHA']")
+                    except:
+                        logging.info("CAPTCHA appears to be solved manually")
+                        break
+                        
+                # Find and click Submit button if it exists
+                try:
+                    submit_button = self.driver.find_element(By.CSS_SELECTOR, "input[type='submit'][value='Submit']")
+                    submit_button.click()
+                    logging.info("Submit button clicked after CAPTCHA verification")
+                    time.sleep(2)
+                except:
+                    logging.info("No Submit button found or already submitted")
+                    
+                # Store flag indicating first CAPTCHA was solved manually
+                self.captcha_solved_manually = True
+        except:
+            logging.info("No CAPTCHA on initial page load")
+            
+        # Accept cookies if button exists
+        try:
+            cookie_accept = self.driver.find_element(By.CSS_SELECTOR, ".btn_accept")
+            if cookie_accept:
+                cookie_accept.click()
+                logging.info("Clicked cookie accept button")
+                time.sleep(random.uniform(1, 2))
+        except Exception:
+            pass
+            
+    except Exception as e:
+        logging.error(f"Error accessing homepage: {e}")
+
+def handle_captcha(self):
+    """Handle CAPTCHA verification automatically after first manual verification"""
+    try:
+        # Check if CAPTCHA is present
+        captcha_frame = self.driver.find_element(By.CSS_SELECTOR, "iframe[title^='reCAPTCHA']")
+        if captcha_frame:
+            logging.info("CAPTCHA detected - attempting automatic handling")
+            
+            # If this is not the first CAPTCHA and it was manually solved before
+            if hasattr(self, 'captcha_solved_manually') and self.captcha_solved_manually:
+                try:
+                    # Switch to the CAPTCHA iframe
+                    self.driver.switch_to.frame(captcha_frame)
+                    
+                    # Find and click the checkbox
+                    checkbox = self.driver.find_element(By.CSS_SELECTOR, ".recaptcha-checkbox")
+                    checkbox.click()
+                    logging.info("CAPTCHA checkbox clicked")
+                    
+                    # Switch back to main content
+                    self.driver.switch_to.default_content()
+                    
+                    # Wait briefly for CAPTCHA verification
+                    time.sleep(3)
+                    
+                    # Find and click Submit button
+                    try:
+                        submit_button = self.driver.find_element(By.CSS_SELECTOR, "input[type='submit'][value='Submit']")
+                        submit_button.click()
+                        logging.info("Submit button clicked after CAPTCHA verification")
+                        return True
+                    except:
+                        logging.warning("Submit button not found after CAPTCHA")
+                        return False
+                except Exception as e:
+                    logging.error(f"Error handling CAPTCHA: {e}")
+                    return False
+            else:
+                # First CAPTCHA needs manual intervention
+                logging.warning("First CAPTCHA detected - requires manual verification")
+                print("\n*** MANUAL ACTION REQUIRED ***")
+                print("Please complete the CAPTCHA verification in the browser window")
+                print("You have 60 seconds to complete this action")
+                
+                # Wait for manual verification (up to 60 seconds)
+                for i in range(60):
+                    time.sleep(1)
+                    # Check if CAPTCHA is still present
+                    try:
+                        self.driver.find_element(By.CSS_SELECTOR, "iframe[title^='reCAPTCHA']")
+                    except:
+                        logging.info("CAPTCHA appears to be solved manually")
+                        self.captcha_solved_manually = True
+                        return True
+                
+                logging.warning("CAPTCHA verification timeout - user didn't complete verification")
+                return False
+    except:
+        # No CAPTCHA found
+        return True 

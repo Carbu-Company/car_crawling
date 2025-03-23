@@ -34,7 +34,7 @@ logging.basicConfig(
 class EncarCrawler:
     """Class to manage the crawling of Encar website"""
     
-    def __init__(self, start_page=100, max_pages=None, save_all=True, use_opensearch=True):
+    def __init__(self, start_page=1, max_pages=None, save_all=True, use_opensearch=True):
         """
         Initialize the crawler.
         
@@ -66,13 +66,13 @@ class EncarCrawler:
         
         # Set WebDriver command timeout
         if hasattr(self.driver, 'command_executor'):
-            self.driver.command_executor._conn.timeout = 600.0
+            self.driver.command_executor._conn.timeout = 10.0
             logging.info(f"WebDriver command timeout set to {self.driver.command_executor._conn.timeout} seconds")
             
             # Set page load and script timeouts
-            self.driver.set_page_load_timeout(300)
-            self.driver.set_script_timeout(300)
-            logging.info("Page load and script timeouts set to 300 seconds")
+            self.driver.set_page_load_timeout(10)
+            self.driver.set_script_timeout(10)
+            logging.info("Page load and script timeouts set to 10 seconds")
         
         # Try to randomize user agent
         try:
@@ -165,26 +165,7 @@ class EncarCrawler:
         time.sleep(wait_time)
     
     def crawl_page(self, page_number):
-        """
-        Crawl a single page of car listings.
-        
-        Args:
-            page_number: Page number to crawl
-            
-        Returns:
-            list: List of car data dictionaries from this page
-            bool: Flag indicating if driver needs to be reset
-        """
         logging.info(f"\n===== Starting crawl of page {page_number} =====\n")
-        
-        # Check if enough time has passed since last robot detection
-        current_time = time.time()
-        if config.LAST_ROBOT_DETECTION > 0:
-            time_since_detection = current_time - config.LAST_ROBOT_DETECTION
-            if time_since_detection < config.ROBOT_DETECTION_COOLDOWN:
-                wait_time = min(config.ROBOT_DETECTION_COOLDOWN - time_since_detection, 10)
-                logging.info(f"Waiting {wait_time:.0f} seconds after robot detection...")
-                time.sleep(wait_time)
         
         # Check session validity
         if not car_detail_extractor.is_session_valid(self.driver):
@@ -203,7 +184,7 @@ class EncarCrawler:
         # Get car listings
         try:
             # Simulate human behavior - slight delay after page load
-            random_delay = random.uniform(2, 5)
+            random_delay = random.uniform(2, 3)
             time.sleep(random_delay)
             
             car_items = self.driver.find_elements(By.CSS_SELECTOR, config.SELECTORS["car_items"])
@@ -314,7 +295,7 @@ class EncarCrawler:
             self.initialize_driver()
             
             # Accept cookies and initial setup
-            self.accept_cookies_and_setup()
+            # self.accept_cookies_and_setup()
             
             # Initialize OpenSearch
             self.initialize_opensearch()
@@ -325,15 +306,6 @@ class EncarCrawler:
             continue_crawling = True
             
             while continue_crawling and (pages_crawled < self.max_pages):
-                # Check for and handle alerts before page crawl
-                try:
-                    alert = self.driver.switch_to.alert
-                    if self.handle_alert("before page crawl"):
-                        self.reset_driver()
-                        continue
-                except NoAlertPresentException:
-                    pass  # No alert, continue normally
-                
                 # Crawl current page
                 try:
                     page_car_data, reset_needed = self.crawl_page(current_page)
