@@ -194,6 +194,11 @@ LOG_LEVEL = "INFO"
 LOG_FORMAT = "%(asctime)s - %(levelname)s - %(message)s"
 LOG_DATE_FORMAT = "%Y-%m-%d %H:%M:%S"
 
+# 로봇 감지 관련 설정
+ROBOT_DETECTION_COOLDOWN = 300  # 로봇 감지 후 대기 시간 (초)
+LAST_ROBOT_DETECTION = 0  # 마지막 로봇 감지 시간
+ROBOT_DETECTION_COUNT = 0  # 로봇 감지 카운트
+
 def get_random_user_agent():
     """
     사용자 에이전트 목록에서 무작위로 하나를 선택하여 반환
