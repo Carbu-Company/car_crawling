@@ -34,7 +34,7 @@ logging.basicConfig(
 class EncarCrawler:
     """Class to manage the crawling of Encar website"""
     
-    def __init__(self, start_page=1, max_pages=None, save_all=True, use_opensearch=True):
+    def __init__(self, start_page=100, max_pages=None, save_all=True, use_opensearch=True):
         """
         Initialize the crawler.
         
